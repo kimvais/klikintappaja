@@ -35,10 +35,18 @@ function init() {
     }
 
     chrome.storage.local.get(
-      { enabled: true, provider: DEFAULT_PROVIDER, keys: {}, models: {}, count: 0 },
+      {
+        enabled: true,
+        provider: DEFAULT_PROVIDER,
+        keys: {},
+        models: {},
+        count: 0,
+        paywallMode: 'dim',
+      },
       (cfg) => {
         $('enabled').checked = cfg.enabled !== false;
         $('count').textContent = cfg.count || 0;
+        $('paywallMode').value = cfg.paywallMode || 'dim';
         keys = cfg.keys || {};
         models = cfg.models || {};
         sel.value = PROVIDERS[cfg.provider] ? cfg.provider : DEFAULT_PROVIDER;
@@ -57,13 +65,25 @@ $('enabled').addEventListener('change', () => {
   chrome.storage.local.set({ enabled: $('enabled').checked });
 });
 
+// Applied immediately: the content script re-treats already-marked teasers on
+// change, so there is no need to reload the page.
+$('paywallMode').addEventListener('change', () => {
+  chrome.storage.local.set({ paywallMode: $('paywallMode').value });
+});
+
 $('save').addEventListener('click', () => {
   const provider = $('provider').value;
   const info = PROVIDERS[provider] || {};
   keys[provider] = $('apiKey').value.trim();
   models[provider] = $('model').value.trim() || info.defaultModel || '';
   chrome.storage.local.set(
-    { provider, keys, models, enabled: $('enabled').checked },
+    {
+      provider,
+      keys,
+      models,
+      enabled: $('enabled').checked,
+      paywallMode: $('paywallMode').value,
+    },
     () => flash('Tallennettu.')
   );
 });

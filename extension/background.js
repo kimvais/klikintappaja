@@ -260,8 +260,14 @@ async function handleRewrite({ url, originalHeadline, body, mod }) {
 // Fetch article HTML on behalf of the content script. The service worker can
 // make cross-origin requests to any host in host_permissions (content scripts
 // cannot in MV3), so this is what makes cross-site teasers work.
+// Sends the user's cookies for the news site on purpose: it is what lets a
+// paying IS Extra / Iltalehti Plus subscriber get the real article text (and so
+// a real headline) where everyone else gets the lede and a paywall treatment.
+// Cookies go only to the news site being read — never to the LLM provider — but
+// note that for a subscriber the article text sent onward to their chosen
+// provider is subscriber-only content. See PRIVACY.md.
 async function fetchArticle(url) {
-  const res = await fetch(url, { credentials: 'omit' });
+  const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) return { error: 'fetch ' + res.status };
   return { html: await res.text() };
 }

@@ -76,5 +76,87 @@
     return null;
   }
 
-  globalThis.UutisExtractors = { extractArticleBody, extractModifiedAt };
+  // --- paywall detection ----------------------------------------------------
+  // Whether the fetched article is premium, and whether we actually got its
+  // text. Signals below were derived by diffing locked vs free articles fetched
+  // anonymously from both sites (2026-08-06): each appeared in *every* locked
+  // article and in *no* free one.
+  //
+  // The premium flags describe the ARTICLE, not the reader — a logged-in
+  // subscriber's copy carries them too. So "can we read it" is a separate,
+  // length-based test: a locked copy returns only the lede (measured: IL 19–30
+  // chars, IS 540–752) where a readable one returns thousands.
+  const READABLE_MIN_CHARS = 1000;
+
+  // Every JSON-LD object on the page, flattened (arrays and @graph included).
+  function ldEntities(doc) {
+    const out = [];
+    const push = (v) => {
+      if (!v || typeof v !== 'object') return;
+      out.push(v);
+      if (Array.isArray(v['@graph'])) v['@graph'].forEach(push);
+    };
+    for (const s of doc.querySelectorAll('script[type="application/ld+json"]')) {
+      let data;
+      try {
+        data = JSON.parse(s.textContent || 'null');
+      } catch {
+        continue; // malformed blob — ignore
+      }
+      if (Array.isArray(data)) data.forEach(push);
+      else push(data);
+    }
+    return out;
+  }
+
+  // The page's OWN article entity. Scoping to this matters: an is.fi page embeds
+  // metadata for the IS Extra articles it promotes in sidebars, so a page-wide
+  // search for a "paid" flag reports every page that merely links to Extra
+  // content as paywalled.
+  function articleEntity(doc) {
+    const isArticle = (t) =>
+      (Array.isArray(t) ? t : [t]).some((x) => typeof x === 'string' && /Article$/.test(x));
+    return ldEntities(doc).find((o) => isArticle(o['@type'])) || null;
+  }
+
+  function accessibleForFree(entity) {
+    if (!entity) return null;
+    const v = entity.isAccessibleForFree;
+    if (v === true || v === false) return v;
+    if (typeof v === 'string') {
+      if (/^(false|no)$/i.test(v)) return false;
+      if (/^(true|yes)$/i.test(v)) return true;
+    }
+    return null;
+  }
+
+  function premiumOf(doc, host) {
+    if (/(^|\.)iltalehti\.fi$/.test(host) || /(^|\.)kauppalehti\.fi$/.test(host)) {
+      // IL publishes no isAccessibleForFree, and has no single state container
+      // to scope a JSON search to, so go by the Plus / Plus Extra article chrome
+      // on the article element itself — which is properly scoped, unlike a
+      // page-wide search for "contentCharge":"paid" (an IL page can embed that
+      // for the Plus teasers it links to). If IL renames these classes this
+      // fails open: the article is treated as ordinary, never wrongly hidden.
+      return doc.querySelector('.plus-article, .article-plus, .plus-lead, .plus-title')
+        ? 'il-plus'
+        : null;
+    }
+    // IS states it properly in schema.org terms on the article itself.
+    return accessibleForFree(articleEntity(doc)) === false ? 'is-extra' : null;
+  }
+
+  // -> { premium: 'is-extra' | 'il-plus' | null, locked: boolean }
+  function detectPaywall(doc, host, body) {
+    const premium = premiumOf(doc, host);
+    const text = typeof body === 'string' ? body : extractArticleBody(doc, host);
+    return { premium, locked: !!premium && text.length < READABLE_MIN_CHARS };
+  }
+
+  globalThis.UutisExtractors = {
+    extractArticleBody,
+    extractModifiedAt,
+    detectPaywall,
+    READABLE_MIN_CHARS,
+  };
 })();

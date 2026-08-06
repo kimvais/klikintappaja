@@ -15,9 +15,20 @@ us** and collects **no analytics**.
 - **Article text** — to rewrite a headline, the extension fetches the linked
   article and sends its text and the original headline to the AI provider you
   selected. This is the only content transmitted, and only to that provider.
+- **News-site cookies** — the article fetch is made **with your existing cookies
+  for that news site** (is.fi, iltasanomat.fi, iltalehti.fi, kauppalehti.fi),
+  exactly as your browser would send them if you opened the article yourself.
+  This is what lets a paying IS Extra / Iltalehti Plus subscriber get a real
+  headline instead of a paywall placeholder. Those cookies go **only** to the
+  news site — never to the AI provider, and never to anyone else. One
+  consequence to be aware of: if you are a subscriber, the article text the
+  extension sends onward to your chosen AI provider is subscriber-only content.
+  If you would rather that never happen, set **Maksumuurin takana** to
+  *Piilota kokonaan* or *Häivytä* — locked articles are then never sent to the
+  provider at all.
 - **Local cache** — rewritten headlines are cached in `chrome.storage.local`
-  for 24 hours (keyed by article URL) to avoid repeat calls. You can clear it
-  any time from the extension popup.
+  for 24 hours (keyed by the article's ID and a hash of its text) to avoid
+  repeat calls. You can clear it any time from the extension popup.
 
 ## What we do NOT do
 

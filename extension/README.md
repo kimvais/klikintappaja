@@ -30,6 +30,13 @@ backend, no data leaves the browser except the article text sent to the LLM.
    that gets rewritten gets a fresh headline instead of a stale one. Site
    `ETag`s are deliberately not used for this: Iltalehti sends none, and IS
    rotates its ETag on articles that have not changed.
+6. **Paywalled articles** (IS Extra, Iltalehti Plus / Plus Extra) are detected
+   from the fetched article, not from the front-page badge. Because the fetch
+   sends your cookies, a logged-in subscriber gets the full text and a normal
+   headline; for everyone else only the lede comes back and the teaser gets the
+   treatment chosen under **Maksumuurin takana** in the popup: *Häivytä*
+   (grayed out, 💀 → 🫰) or *Piilota kokonaan* (removed), or *Ei mitään* to
+   leave them alone. Locked articles are never sent to the AI provider.
 
 ## Install (load unpacked)
 
@@ -76,7 +83,7 @@ extension on/off or clear the cache from the popup.
 | --- | --- |
 | `manifest.json` | MV3 manifest (matches, permissions, worker, popup) |
 | `content.js` | headline detection, lazy fetch+extract, text swap |
-| `extractors.js` | per-site body extraction (ported from `fi.py`) |
+| `extractors.js` | per-site body extraction (ported from `fi.py`) + paywall detection |
 | `articleid.js` | article ID from the URL (`is:`/`a:`, UUIDv5 fallback) — the cache key |
 | `prompts.js` | anti-clickbait prompt (ported from `prompts.py`) |
 | `background.js` | provider registry (Gemini/Claude/OpenAI) + per-URL cache |

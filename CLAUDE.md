@@ -68,7 +68,19 @@ for review; first upload was manual).
    several links is fetched and rewritten once. Loaded in both contexts, so it is
    a classic IIFE on `globalThis.KlikintappajaIds` (like `extractors.js`),
    `import`ed for its side effect by the module SW.
-7. **Cache validity is content-based, never transport-based.** `contentHash()`
+7. **Paywalls.** `fetchArticle` uses `credentials: 'include'` **on purpose** — it
+   is what lets a logged-in IS Extra / Iltalehti Plus subscriber get real article
+   text (and a real headline). `detectPaywall(doc, host, body)` returns
+   `{ premium, locked }`: `premium` is the tier flag from the article itself
+   (`is-extra` | `il-plus`), `locked` additionally requires the body to be under
+   `READABLE_MIN_CHARS` (1000) — because the tier flag describes the *article*,
+   not the reader, so a subscriber's copy carries it too. A locked article is
+   never sent to the LLM. The popup's `paywallMode` (`off` | `dim` | `hide`,
+   default `dim`) decides the treatment: `dim` grays the teaser and turns the
+   marker 💀 → 🫰, `hide` sets `display:none`. `teaserUnit()` picks what to
+   gray/hide by walking up only while the ancestor still covers exactly **one**
+   distinct article, so a ticker or card grid can never be swallowed.
+8. **Cache validity is content-based, never transport-based.** `contentHash()`
    (SHA-256 of the whitespace-collapsed extracted body, 64 bits hex) decides
    whether a cached headline still applies. This is exact rather than heuristic:
    the headline is a pure function of the prompt inputs, and the body is the only
@@ -95,6 +107,16 @@ for review; first upload was manual).
   collide with a real Alma UUID. `pruneCache()` treats any `cache:` key
   containing `://` as a pre-ID leftover, and any entry whose `v` is not
   `CACHE_VERSION` as an old shape, and deletes both.
+- **Paywall detection must be scoped to the page's own article**, never a
+  page-wide string search. Measured trap (2026-08-06): an is.fi page embeds
+  metadata for the IS Extra articles it promotes in sidebars, so searching all
+  inline scripts for `"paywallStatus":"paid"` flagged *free* articles as
+  paywalled. IS is read from the JSON-LD entity whose `@type` ends in `Article`
+  (`isAccessibleForFree === false`); IL, which publishes no such field and has no
+  single state container, is read from the article element's own Plus classes
+  (`.plus-article`, `.article-plus`, `.plus-lead`, `.plus-title`). Both fail
+  **open** — undetected means treated as an ordinary article, never wrongly
+  hidden.
 - **Do not use `ETag`/`Last-Modified` to decide whether to regenerate.** Measured
   against live articles (2026-08-06): `iltalehti.fi` sends no validator at all,
   and `is.fi` rotated its ETag through 3 values in 2.5 min — flipping A→B→A

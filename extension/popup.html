@@ -78,6 +78,17 @@
     <label for="model">Malli</label>
     <input type="text" id="model" />
 
+    <label for="paywallMode">Maksumuurin takana</label>
+    <select id="paywallMode">
+      <option value="off">Ei mitään</option>
+      <option value="dim">Häivytä (harmaaksi + 🫰)</option>
+      <option value="hide">Piilota kokonaan</option>
+    </select>
+    <div class="muted">
+      Koskee IS Extra- ja Iltalehti Plus -juttuja, joita ei voi lukea. Jos olet
+      kirjautunut tilaaja, jutut käsitellään normaalisti.
+    </div>
+
     <div class="row">
       <span>Tapettuja otsikoita: <b id="count">0</b></span>
       <button id="clear">Tyhjennä välimuisti</button>

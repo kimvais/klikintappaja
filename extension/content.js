@@ -13,6 +13,8 @@
   const MIN_HEADLINE_LEN = 15;
   const MAX_HEADLINE_LEN = 220;
   const CARD_LOOKUP_HOPS = 4; // ancestors to search for an article link
+  const TEASER_LOOKUP_HOPS = 4; // ancestors to consider as "this one teaser"
+  const PAYWALL_MODES = ['off', 'dim', 'hide'];
 
   // Article-URL patterns per host (used to tell headline links from nav/ads).
   const ARTICLE_PATTERNS = [
@@ -21,8 +23,10 @@
   ];
 
   let enabled = true;
+  let paywallMode = 'dim'; // off | dim (gray + 🫰) | hide
   let inFlight = 0;
   const queue = [];
+  const treated = new Set(); // {el, unit, tier} we applied a paywall treatment to
   // article id -> Promise<string|null>. Keyed by ID rather than URL so the same
   // article teased twice on one page (carousel + list, differing query strings)
   // is fetched and rewritten once.
@@ -39,6 +43,10 @@
     '.klt-marker.klt-working{animation:klt-spin .9s linear infinite;}' +
     '.klt-marker.klt-done{opacity:.5;font-size:.75em;}' +
     '.klt-marker.klt-done::after{content:"\\2728";}' /* ✨ */ +
+    '.klt-marker.klt-paid::after{content:"\\1FAF0";}' /* 🫰 behind a paywall */ +
+    '.klt-paywalled{opacity:.4;filter:grayscale(1);transition:opacity .2s ease;}' +
+    '.klt-paywalled:hover{opacity:.75;}' +
+    '.klt-paywalled-hidden{display:none!important;}' +
     '@keyframes klt-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}' +
     '@media (prefers-reduced-motion:reduce){.klt-marker.klt-working{animation:none;}}';
   (document.head || document.documentElement).appendChild(style);
@@ -55,6 +63,12 @@
   function setMarkerDone(el) {
     const span = el._kltMarker;
     if (span) span.className = 'klt-marker klt-done';
+  }
+
+  // Spinning 💀 → 🫰 : we could not read this one, it wants your money.
+  function setMarkerPaid(el) {
+    const span = el._kltMarker;
+    if (span) span.className = 'klt-marker klt-paid';
   }
 
   function removeMarker(el) {
@@ -108,6 +122,80 @@
       }
     }
     return null;
+  }
+
+  // How many *distinct* articles an element links to. Used to find the biggest
+  // ancestor that is still just this one teaser.
+  function distinctArticleCount(el) {
+    const seen = new Set();
+    const add = (a) => {
+      const href = a.getAttribute('href');
+      if (!looksLikeArticle(href)) return;
+      const u = abs(href);
+      if (u) seen.add(u.split('?')[0].split('#')[0]);
+    };
+    if (el.tagName === 'A') add(el);
+    if (el.querySelectorAll) for (const a of el.querySelectorAll('a[href]')) add(a);
+    return seen.size;
+  }
+
+  // The element that visually *is* this teaser — what gets grayed out or hidden.
+  // Walk up only while the candidate still covers exactly one article, so a
+  // shared container (a news ticker, a card grid, a whole section) can never be
+  // swallowed. Verified against the rendered front pages: <article class="teaser-*">
+  // on IS, <div class="card fp-container"> on IL, and in IL's ticker the
+  // <a class="news-ticker-item"> itself. Worst case it degrades to the headline.
+  function teaserUnit(el) {
+    const card = el.closest && el.closest('article,li');
+    if (card && distinctArticleCount(card) === 1) return card;
+    let best = el;
+    let node = el;
+    for (let hop = 0; hop < TEASER_LOOKUP_HOPS && node.parentElement; hop++) {
+      node = node.parentElement;
+      if (distinctArticleCount(node) !== 1) break;
+      best = node;
+    }
+    return best;
+  }
+
+  const TIER_LABEL = { 'is-extra': 'IS Extra', 'il-plus': 'Iltalehti Plus' };
+
+  function applyPaywallTreatment(el, tier) {
+    const unit = teaserUnit(el);
+    const rec = { el, unit, tier };
+    treated.add(rec);
+    if (paywallMode === 'hide') {
+      removeMarker(el);
+      unit.classList.add('klt-paywalled-hidden');
+    } else {
+      unit.classList.add('klt-paywalled');
+      addMarker(el); // in case it was removed while hidden
+      setMarkerPaid(el);
+      el.title = 'Maksumuurin takana (' + (TIER_LABEL[tier] || 'maksullinen') + ')';
+    }
+    el.setAttribute(PROCESSED_ATTR, 'paid');
+  }
+
+  // Re-apply every recorded treatment after the setting changes, so switching
+  // mode in the popup takes effect without a reload.
+  function refreshPaywallTreatments() {
+    for (const rec of treated) {
+      rec.unit.classList.remove('klt-paywalled', 'klt-paywalled-hidden');
+      if (paywallMode === 'off') {
+        removeMarker(rec.el);
+        rec.el.removeAttribute('title');
+        continue;
+      }
+      if (paywallMode === 'hide') {
+        removeMarker(rec.el);
+        rec.unit.classList.add('klt-paywalled-hidden');
+      } else {
+        rec.unit.classList.add('klt-paywalled');
+        addMarker(rec.el);
+        setMarkerPaid(rec.el);
+        rec.el.title = 'Maksumuurin takana (' + (TIER_LABEL[rec.tier] || 'maksullinen') + ')';
+      }
+    }
   }
 
   function markUnit(el, headline, url) {
@@ -233,6 +321,13 @@
       }
       const doc = new DOMParser().parseFromString(fetched.html, 'text/html');
       const body = globalThis.UutisExtractors.extractArticleBody(doc, host);
+      // Paywall check first: a locked article yields only the lede, so without
+      // this an IS Extra teaser would get a headline written from its teaser text
+      // while an IL Plus one would just fall through the length gate below.
+      // A subscriber's fetch (cookies are sent) returns the full text, so
+      // `locked` is false for them and the normal path runs.
+      const pw = globalThis.UutisExtractors.detectPaywall(doc, host, body);
+      if (pw.locked && paywallMode !== 'off') return { paywalled: pw.premium };
       if (!body || body.length < 120) return null; // not enough ground truth
       const reply = await chrome.runtime.sendMessage({
         type: 'rewrite',
@@ -245,7 +340,7 @@
         if (reply && reply.error) console.debug('[klikintappaja] llm:', reply.error);
         return null;
       }
-      return reply.headline || null;
+      return reply.headline ? { headline: reply.headline } : null;
     })();
     articleCache.set(id, p);
     return p;
@@ -255,12 +350,17 @@
     if (!enabled) return;
     const original = el._kltHeadline;
     const url = el._kltUrl;
-    let rewritten = null;
+    let result = null;
     try {
-      rewritten = await fetchAndRewrite(url, original);
+      result = await fetchAndRewrite(url, original);
     } catch (err) {
       console.debug('[klikintappaja] fetch/rewrite error:', err);
     }
+    if (result && result.paywalled) {
+      applyPaywallTreatment(el, result.paywalled);
+      return;
+    }
+    const rewritten = result && result.headline;
     if (!rewritten || collapse(rewritten) === original) {
       removeMarker(el); // nothing changed — don't leave a badge behind
       el.setAttribute(PROCESSED_ATTR, 'skip');
@@ -335,15 +435,24 @@
     mo.observe(document.body, { childList: true, subtree: true });
   }
 
-  chrome.storage.local.get({ enabled: true }, (cfg) => {
+  chrome.storage.local.get({ enabled: true, paywallMode: 'dim' }, (cfg) => {
     enabled = cfg.enabled !== false;
+    if (PAYWALL_MODES.includes(cfg.paywallMode)) paywallMode = cfg.paywallMode;
     if (enabled) start();
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.enabled) {
+    if (area !== 'local') return;
+    if (changes.enabled) {
       enabled = changes.enabled.newValue !== false;
       if (enabled) start();
+    }
+    if (changes.paywallMode) {
+      const next = changes.paywallMode.newValue;
+      if (PAYWALL_MODES.includes(next) && next !== paywallMode) {
+        paywallMode = next;
+        refreshPaywallTreatments();
+      }
     }
   });
 })();
