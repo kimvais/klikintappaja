@@ -21,7 +21,7 @@ for review; first upload was manual).
 - `extension/` — the loadable/zippable extension:
   - `manifest.json`, `content.js`, `extractors.js`, `prompts.js`,
     `background.js`, `popup.html`/`popup.js`, `icons/` (16/48/128 skull),
-    `README.md`, `PRIVACY.md`.
+    `README.md`, `PRIVACY.md`, `LICENSE`.
 - `store/` — Web Store listing assets (icon 128/512, 1280×800 before/after
   screenshot, 440×280 + 1400×560 promo tiles).
 - `build.ps1` — zips the **contents** of `extension/` → `klikintappaja-extension.zip`
@@ -30,6 +30,8 @@ for review; first upload was manual).
 - `.github/workflows/release.yml` — on `v*` tag: validate, assert tag ==
   manifest version, build, GitHub Release, optional Web Store publish.
 - `PUBLISHING.md` — release + Web Store publishing guide and repo settings.
+- `LICENSE` — MIT, © 2026 Kimmo Parviainen-Jalanko. An **identical copy** lives at
+  `extension/LICENSE` so the shipped zip carries it; keep the two in sync.
 
 ## Architecture / flow
 

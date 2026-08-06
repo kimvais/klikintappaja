@@ -53,10 +53,15 @@ auto-publish to the Chrome Web Store — see [PUBLISHING.md](PUBLISHING.md).
 | `store/` | Chrome Web Store listing assets (icon, screenshot, promo tiles) |
 | `build.ps1` | build the distributable zip |
 | `PUBLISHING.md` | release + Web Store publishing guide |
+| `LICENSE` | MIT (mirrored into `extension/` so it ships in the zip) |
 
 ## Privacy
 
 See [extension/PRIVACY.md](extension/PRIVACY.md).
+
+## License
+
+[MIT](LICENSE) © 2026 Kimmo Parviainen-Jalanko.
 
 ## Credits
 

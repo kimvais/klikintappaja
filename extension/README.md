@@ -73,3 +73,7 @@ extension on/off or clear the cache from the popup.
 | `popup.html` / `popup.js` | provider, API key, model, toggle, counter, clear cache |
 
 Build the distributable zip with `build.ps1` (repo root).
+
+## License
+
+[MIT](LICENSE) © 2026 Kimmo Parviainen-Jalanko.
