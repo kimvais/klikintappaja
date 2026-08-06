@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "Klikintappaja",
+  "version": "0.1.0",
+  "description": "Korvaa Iltalehden ja Ilta-Sanomien klikkiotsikot asiallisilla, tekoälyn tuottamilla otsikoilla.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "*://*.is.fi/*",
+    "*://*.iltasanomat.fi/*",
+    "*://*.iltalehti.fi/*",
+    "*://*.kauppalehti.fi/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.anthropic.com/*",
+    "https://api.openai.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Klikintappaja",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.is.fi/*",
+        "*://*.iltasanomat.fi/*",
+        "*://*.iltalehti.fi/*"
+      ],
+      "js": ["extractors.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

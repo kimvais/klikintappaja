@@ -1,0 +1,8 @@
+# Build artifact (produced by build.ps1 / CI)
+/klikintappaja-extension.zip
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

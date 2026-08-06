@@ -1,0 +1,41 @@
+name: build
+
+# Validate and build the Klikintappaja extension zip on every change.
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'extension/**'
+      - 'build.ps1'
+      - '.github/workflows/build.yml'
+  pull_request:
+    paths:
+      - 'extension/**'
+      - 'build.ps1'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate manifest.json and JS
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('extension/manifest.json','utf8')); console.log('manifest OK')"
+          for f in extension/*.js; do node --check "$f" && echo "$f OK"; done
+
+      - name: Build zip
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: klikintappaja-extension
+          path: klikintappaja-extension.zip
+          if-no-files-found: error

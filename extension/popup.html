@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="fi">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        width: 320px;
+        margin: 0;
+        padding: 14px;
+        font-size: 13px;
+        color: #1a1a1a;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 10px;
+      }
+      label {
+        display: block;
+        margin: 10px 0 4px;
+        font-weight: 600;
+      }
+      input[type='text'],
+      input[type='password'],
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 13px;
+        background: #fff;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 12px 0;
+      }
+      .muted {
+        color: #666;
+        font-size: 11px;
+        margin-top: 4px;
+      }
+      a {
+        color: #0a63c9;
+      }
+      button {
+        margin-top: 10px;
+        padding: 6px 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: #f5f5f5;
+        cursor: pointer;
+      }
+      #status {
+        margin-top: 8px;
+        min-height: 14px;
+        color: #0a7d00;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>💀 Klikintappaja</h1>
+
+    <div class="row">
+      <span>Käytössä</span>
+      <input type="checkbox" id="enabled" />
+    </div>
+
+    <label for="provider">Tekoälypalvelu</label>
+    <select id="provider"></select>
+
+    <label for="apiKey">API-avain</label>
+    <input type="password" id="apiKey" autocomplete="off" />
+    <div class="muted" id="keyHint"></div>
+
+    <label for="model">Malli</label>
+    <input type="text" id="model" />
+
+    <div class="row">
+      <span>Tapettuja otsikoita: <b id="count">0</b></span>
+      <button id="clear">Tyhjennä välimuisti</button>
+    </div>
+
+    <button id="save">Tallenna</button>
+    <div id="status"></div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

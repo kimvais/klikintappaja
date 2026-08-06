@@ -1,0 +1,79 @@
+name: release
+
+# Fires on a version tag (e.g. v0.1.1). Builds the zip, attaches it to a
+# GitHub Release (the install-outside-the-store channel), and — if opted in —
+# publishes to the Chrome Web Store.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write # create releases + upload assets
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate manifest.json and JS
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('extension/manifest.json','utf8')); console.log('manifest OK')"
+          for f in extension/*.js; do node --check "$f" && echo "$f OK"; done
+
+      - name: Check tag matches manifest version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          MAN=$(node -e "console.log(require('./extension/manifest.json').version)")
+          echo "tag=$TAG manifest=$MAN"
+          if [ "$TAG" != "$MAN" ]; then
+            echo "::error::Tag v$TAG does not match manifest version $MAN. Bump extension/manifest.json first."
+            exit 1
+          fi
+
+      - name: Build zip
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" klikintappaja-extension.zip --generate-notes --title "$GITHUB_REF_NAME"
+
+      # --- Optional Chrome Web Store publish -------------------------------
+      # Opt in by setting repository variable PUBLISH_TO_CWS = true and adding
+      # the four CWS_* secrets (see PUBLISHING.md). Skipped otherwise, so the
+      # release above still succeeds without any store credentials.
+      - name: Publish to Chrome Web Store
+        if: ${{ vars.PUBLISH_TO_CWS == 'true' }}
+        env:
+          EXT_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "Getting access token…"
+          TOKEN=$(curl -sf -X POST https://oauth2.googleapis.com/token \
+            -d client_id="$CLIENT_ID" \
+            -d client_secret="$CLIENT_SECRET" \
+            -d refresh_token="$REFRESH_TOKEN" \
+            -d grant_type=refresh_token | jq -r .access_token)
+          echo "Uploading new package…"
+          curl -sf -X PUT \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -T klikintappaja-extension.zip \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$EXT_ID"
+          echo "Submitting for publication…"
+          curl -sf -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -H "Content-Length: 0" \
+            "https://www.googleapis.com/chromewebstore/v1.1/items/$EXT_ID/publish"
+          echo "Done."
