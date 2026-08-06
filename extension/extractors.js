@@ -56,5 +56,25 @@
     return text.slice(0, MAX_BODY_CHARS);
   }
 
-  globalThis.UutisExtractors = { extractArticleBody };
+  // The article's own "last edited" timestamp, when the page states one. Stored
+  // alongside a cached headline as a diagnostic hint — NOT as a cache validator:
+  // an edit that doesn't change the extracted body can't change the generated
+  // headline, so it would only trigger regenerations that produce the same text.
+  // IS puts it in JSON-LD and <meta name="article:modified_time">, IL in
+  // <meta itemprop="dateModified">.
+  function extractModifiedAt(doc) {
+    const meta =
+      doc.querySelector('meta[itemprop="dateModified" i]') ||
+      doc.querySelector('meta[property="article:modified_time" i]') ||
+      doc.querySelector('meta[name="article:modified_time" i]');
+    const fromMeta = meta && meta.getAttribute('content');
+    if (fromMeta) return fromMeta.trim();
+    for (const s of doc.querySelectorAll('script[type="application/ld+json"]')) {
+      const m = /"dateModified"\s*:\s*"([^"]+)"/.exec(s.textContent || '');
+      if (m) return m[1];
+    }
+    return null;
+  }
+
+  globalThis.UutisExtractors = { extractArticleBody, extractModifiedAt };
 })();

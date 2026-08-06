@@ -25,6 +25,11 @@ backend, no data leaves the browser except the article text sent to the LLM.
    else falls back to a UUIDv5 of the normalized URL). Tracking params, `www.`
    and cross-site links to the same article all share one entry, so revisits —
    and the same story teased twice on a page — are instant and free.
+5. A cached headline is reused only while the **SHA-256 of the extracted article
+   body** (plus the provider and model) is unchanged, so a *developing story*
+   that gets rewritten gets a fresh headline instead of a stale one. Site
+   `ETag`s are deliberately not used for this: Iltalehti sends none, and IS
+   rotates its ETag on articles that have not changed.
 
 ## Install (load unpacked)
 

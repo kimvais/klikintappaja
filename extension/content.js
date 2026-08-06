@@ -239,6 +239,7 @@
         url,
         originalHeadline,
         body,
+        mod: globalThis.UutisExtractors.extractModifiedAt(doc), // hint only
       });
       if (!reply || reply.error) {
         if (reply && reply.error) console.debug('[klikintappaja] llm:', reply.error);

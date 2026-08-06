@@ -54,6 +54,9 @@ for review; first upload was manual).
    result, and caches it in `chrome.storage.local` for 24h keyed by **article ID**
    (see 6). A future hosted/shared-API provider (no user key) would be one more
    registry entry.
+   An entry is valid only while `sha` (SHA-256 of the extracted body), `provider`
+   and `model` all still match — so a **developing story that gets rewritten
+   regenerates its headline** on the next view (see 7).
 5. Replacement rewrites the headline element's text nodes in place (longest node
    gets the text, others blanked) to preserve site markup/styling. The original
    clickbait stays in a `title` tooltip.
@@ -65,6 +68,14 @@ for review; first upload was manual).
    several links is fetched and rewritten once. Loaded in both contexts, so it is
    a classic IIFE on `globalThis.KlikintappajaIds` (like `extractors.js`),
    `import`ed for its side effect by the module SW.
+7. **Cache validity is content-based, never transport-based.** `contentHash()`
+   (SHA-256 of the whitespace-collapsed extracted body, 64 bits hex) decides
+   whether a cached headline still applies. This is exact rather than heuristic:
+   the headline is a pure function of the prompt inputs, and the body is the only
+   page content the model sees. `mod` (the article's `dateModified`, via
+   `extractModifiedAt`) and `original` (the teaser it was generated from) are
+   stored as **hints only** — see the invariants for why neither may become a
+   validator.
 
 ## Invariants — do NOT regress these
 
@@ -82,7 +93,23 @@ for review; first upload was manual).
   which has no such race, uses the async `articleKey` with its UUIDv5 fallback.
 - Cache keys are tagged (`is:` / `a:` / `u5:`) so a hashed fallback key can never
   collide with a real Alma UUID. `pruneCache()` treats any `cache:` key
-  containing `://` as a pre-ID leftover and deletes it.
+  containing `://` as a pre-ID leftover, and any entry whose `v` is not
+  `CACHE_VERSION` as an old shape, and deletes both.
+- **Do not use `ETag`/`Last-Modified` to decide whether to regenerate.** Measured
+  against live articles (2026-08-06): `iltalehti.fi` sends no validator at all,
+  and `is.fi` rotated its ETag through 3 values in 2.5 min — flipping A→B→A
+  inside 52 s — on an article whose extracted body, `<h1>` and `dateModified`
+  never changed (`Cache-Control: max-age=9`, multiple CloudFront origin renders
+  differing only in ad/"most read" blocks). The churn concentrates on hot
+  articles, i.e. exactly where a false "changed" costs the most.
+- `mod`/`dateModified` must stay a hint, not a validator: an edit that leaves the
+  extracted body identical cannot change the model's output (and the body is
+  capped at `MAX_BODY_CHARS`), so triggering on it only buys duplicate LLM calls
+  that return the same text.
+- `original` (the teaser headline) must stay out of the validity check too, even
+  though it is a prompt input: one article is often teased twice on a page with
+  different wording, and folding it in would make those placements invalidate
+  each other's entry on every single page load.
 - **Not remote code**, and keep it that way: fetched HTML is parsed but never
   executed; API responses are inserted only as DOM **text nodes**. No `innerHTML`
   from fetched content, no external `<script>`/CDN, no `eval`.

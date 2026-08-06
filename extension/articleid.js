@@ -110,9 +110,25 @@
     return articleIdFromUrl(url) || 'u5:' + (await uuidv5(normalizeUrl(url)));
   }
 
+  // Fingerprint of the text the model actually sees. A generated headline is a
+  // pure function of its prompt inputs, so this is what decides whether a cached
+  // headline is still valid — not a transport validator. (Measured on live
+  // articles: is.fi rotates its ETag on content that never changed, and
+  // iltalehti.fi sends no validator at all, while this extracted text held byte-
+  // stable across every sample.) Whitespace is collapsed first so reflowed
+  // markup alone can't look like an edit.
+  async function contentHash(text) {
+    const norm = String(text || '').replace(/\s+/g, ' ').trim();
+    const digest = new Uint8Array(
+      await crypto.subtle.digest('SHA-256', new TextEncoder().encode(norm)),
+    );
+    return Array.from(digest.slice(0, 8), (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
   globalThis.KlikintappajaIds = {
     articleIdFromUrl,
     articleKey,
+    contentHash,
     normalizeUrl,
     uuidv5,
     UUID_NAMESPACE_URL,

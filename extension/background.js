@@ -13,9 +13,10 @@ import { SYSTEM_INSTRUCTION, HARDCORE_FINNISH, buildHeadlinePrompt } from './pro
 // read off globalThis — same arrangement as extractors.js on the content side.
 import './articleid.js';
 
-const { articleKey } = globalThis.KlikintappajaIds;
+const { articleKey, contentHash } = globalThis.KlikintappajaIds;
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const CACHE_VERSION = 2; // 1 = URL-keyed, no content hash
 const MAX_OUT_CHARS = 300;
 const MAX_TOKENS = 200;
 
@@ -146,16 +147,47 @@ async function getConfig() {
   return { provider, apiKey, model };
 }
 
-async function readCache(id) {
+// A cached headline stays valid only while every input that produced it is
+// unchanged. The generated headline is a pure function of (body text, system
+// prompt, provider, model) — the body is the only part of the page the model
+// ever sees — so hashing the extracted body is both necessary and sufficient to
+// catch a developing story being rewritten. Transport validators are not used
+// on purpose: measured against live articles, is.fi rotates its ETag on
+// unchanged content (3 values in 2.5 min on a hot story) and iltalehti.fi sends
+// none at all.
+async function readCache(id, { sha, provider, model }) {
   const key = cacheKey(id);
   const got = await chrome.storage.local.get(key);
   const entry = got[key];
-  if (entry && Date.now() - entry.ts < CACHE_TTL_MS) return entry.headline;
-  return null;
+  if (!entry || entry.v !== CACHE_VERSION) return null;
+  if (Date.now() - entry.ts >= CACHE_TTL_MS) return null;
+  if (entry.sha !== sha) return null; // article was edited -> regenerate
+  if (entry.provider !== provider || entry.model !== model) return null;
+  return entry.headline;
 }
 
-async function writeCache(id, headline) {
-  await chrome.storage.local.set({ [cacheKey(id)]: { headline, ts: Date.now() } });
+// `mod` (the article's own dateModified) and `original` (the front-page
+// clickbait this was generated from) are recorded as hints for debugging and
+// for future use — deliberately NOT part of the validity check above. `mod`
+// can't add anything: an edit that leaves the extracted body identical cannot
+// change the model's output, so acting on it would only buy duplicate work.
+// `original` is a genuine prompt input, but folding it in would make the same
+// article teased twice on one page (carousel + list, different teaser text)
+// invalidate its own entry on every load; sharing one generation across
+// placements is both cheaper and what we want.
+async function writeCache(id, { headline, sha, mod, provider, model, original }) {
+  await chrome.storage.local.set({
+    [cacheKey(id)]: {
+      v: CACHE_VERSION,
+      headline,
+      sha,
+      mod: mod || null,
+      provider,
+      model,
+      original: original || null,
+      ts: Date.now(),
+    },
+  });
 }
 
 // Housekeeping on install/startup: entries only ever expired logically, so drop
@@ -168,7 +200,9 @@ async function pruneCache() {
     if (!k.startsWith('cache:')) return false;
     if (k.includes('://')) return true; // pre-article-ID key
     const entry = all[k];
-    return !entry || typeof entry.ts !== 'number' || now - entry.ts >= CACHE_TTL_MS;
+    if (!entry || typeof entry.ts !== 'number') return true;
+    if (entry.v !== CACHE_VERSION) return true; // pre-content-hash entry
+    return now - entry.ts >= CACHE_TTL_MS;
   });
   if (dead.length) await chrome.storage.local.remove(dead);
   return dead.length;
@@ -204,18 +238,22 @@ async function generateHeadline({ provider, apiKey, model, originalHeadline, bod
 
 // --- message handling -------------------------------------------------------
 
-async function handleRewrite({ url, originalHeadline, body }) {
+async function handleRewrite({ url, originalHeadline, body, mod }) {
   const id = await articleKey(url);
-  const cached = await readCache(id);
+  const sha = await contentHash(body);
+  // Config is read before the cache check (it is key-independent) because the
+  // provider/model are part of what makes an entry valid.
+  const { provider, apiKey, model } = await getConfig();
+
+  const cached = await readCache(id, { sha, provider, model });
   if (cached) return { headline: cached };
 
-  const { provider, apiKey, model } = await getConfig();
   if (!apiKey) return { error: 'no-api-key' };
 
   const headline = await generateHeadline({ provider, apiKey, model, originalHeadline, body });
   if (!headline) return { error: 'empty-output' };
 
-  await writeCache(id, headline);
+  await writeCache(id, { headline, sha, mod, provider, model, original: originalHeadline });
   return { headline };
 }
 
