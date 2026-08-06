@@ -1,7 +1,18 @@
 # 💀 Klikintappaja
 
-[![Latest release](https://img.shields.io/github/v/release/kimvais/klikintappaja)](https://github.com/kimvais/klikintappaja/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/kimvais/klikintappaja?label=release&color=blue)](https://github.com/kimvais/klikintappaja/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/kimvais/klikintappaja/build.yml?branch=main&label=build)](https://github.com/kimvais/klikintappaja/actions/workflows/build.yml)
+[![Chrome Web Store](https://img.shields.io/badge/chrome%20web%20store-in%20review-yellow)](#install-unpacked)
+[![Manifest V3](https://img.shields.io/badge/manifest-v3-555)](extension/manifest.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+<!-- Once the Web Store listing goes live, replace the static "in review" badge
+     above with the real ones (they render "not found" in red until then):
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/jcdabpknfbcbcdbipfclhknoglhgecjl?label=chrome%20web%20store)](https://chromewebstore.google.com/detail/jcdabpknfbcbcdbipfclhknoglhgecjl)
+[![Users](https://img.shields.io/chrome-web-store/users/jcdabpknfbcbcdbipfclhknoglhgecjl)](https://chromewebstore.google.com/detail/jcdabpknfbcbcdbipfclhknoglhgecjl)
+[![Rating](https://img.shields.io/chrome-web-store/rating/jcdabpknfbcbcdbipfclhknoglhgecjl)](https://chromewebstore.google.com/detail/jcdabpknfbcbcdbipfclhknoglhgecjl)
+-->
+
 
 A Chrome extension that replaces clickbait headlines on Finnish news sites
 (**Ilta-Sanomat**, **Iltalehti**, and their cross-linked articles) with concise,
