@@ -19,7 +19,7 @@ for review; first upload was manual).
 ## Layout
 
 - `extension/` — the loadable/zippable extension:
-  - `manifest.json`, `content.js`, `extractors.js`, `prompts.js`,
+  - `manifest.json`, `content.js`, `extractors.js`, `articleid.js`, `prompts.js`,
     `background.js`, `popup.html`/`popup.js`, `icons/` (16/48/128 skull),
     `README.md`, `PRIVACY.md`, `LICENSE`.
 - `store/` — Web Store listing assets (icon 128/512, 1280×800 before/after
@@ -51,11 +51,20 @@ for review; first upload was manual).
 4. `background.js` has a **provider registry** (`PROVIDERS`): Gemini (default
    `gemini-2.5-flash-lite`), Anthropic (`claude-haiku-4-5`), OpenAI
    (`gpt-4o-mini`). It sends the ported prompt + article body, sanitizes the
-   result, and caches it in `chrome.storage.local` for 24h keyed by URL. A future
-   hosted/shared-API provider (no user key) would be one more registry entry.
+   result, and caches it in `chrome.storage.local` for 24h keyed by **article ID**
+   (see 6). A future hosted/shared-API provider (no user key) would be one more
+   registry entry.
 5. Replacement rewrites the headline element's text nodes in place (longest node
    gets the text, others blanked) to preserve site markup/styling. The original
    clickbait stays in a `title` tooltip.
+6. `articleid.js` derives the **article identity** from the URL path —
+   `is:<digits>` from `/art-<id>.html`, `a:<uuid>` from `/a/<uuid>` (IL/KL share
+   the Alma CMS UUID) — falling back to `u5:<uuid>`, a UUIDv5 of the normalized
+   URL in the RFC 9562 URL namespace (`6ba7b811-…`). It keys both the SW cache
+   and the content script's per-page dedupe map, so one article teased through
+   several links is fetched and rewritten once. Loaded in both contexts, so it is
+   a classic IIFE on `globalThis.KlikintappajaIds` (like `extractors.js`),
+   `import`ed for its side effect by the module SW.
 
 ## Invariants — do NOT regress these
 
@@ -67,6 +76,13 @@ for review; first upload was manual).
   cross-origin from the content script.
 - API keys are stored **per provider** under `keys[provider]`, with a legacy
   fallback to a flat `apiKey`.
+- The content script's dedupe map must resolve the article ID **synchronously**
+  (`articleIdFromUrl`, before any `await`) — awaiting first reopens a
+  check-then-set race and duplicate articles get fetched twice. Only the SW,
+  which has no such race, uses the async `articleKey` with its UUIDv5 fallback.
+- Cache keys are tagged (`is:` / `a:` / `u5:`) so a hashed fallback key can never
+  collide with a real Alma UUID. `pruneCache()` treats any `cache:` key
+  containing `://` as a pre-ID leftover and deletes it.
 - **Not remote code**, and keep it that way: fetched HTML is parsed but never
   executed; API responses are inserted only as DOM **text nodes**. No `innerHTML`
   from fetched content, no external `<script>`/CDN, no `eval`.

@@ -38,7 +38,7 @@
         "*://*.iltasanomat.fi/*",
         "*://*.iltalehti.fi/*"
       ],
-      "js": ["extractors.js", "content.js"],
+      "js": ["articleid.js", "extractors.js", "content.js"],
       "run_at": "document_idle"
     }
   ]

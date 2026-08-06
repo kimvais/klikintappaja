@@ -1,6 +1,6 @@
 // Klikintappaja background service worker (MV3, module).
 // Holds the user's API key, calls the chosen LLM provider, and caches results
-// by article URL. The content script never sees the key or talks to the LLM.
+// by article ID. The content script never sees the key or talks to the LLM.
 //
 // Provider abstraction: each entry knows its default model and how to turn
 // (system, prompt) into a headline string. Adding a hosted/shared-API provider
@@ -8,6 +8,12 @@
 // "shared API pivot" the project is heading toward, without a backend today.
 
 import { SYSTEM_INSTRUCTION, HARDCORE_FINNISH, buildHeadlinePrompt } from './prompts.js';
+// articleid.js is a classic script (it is also injected as a content script, and
+// content scripts can't be modules), so it is imported for its side effect and
+// read off globalThis — same arrangement as extractors.js on the content side.
+import './articleid.js';
+
+const { articleKey } = globalThis.KlikintappajaIds;
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 const MAX_OUT_CHARS = 300;
@@ -114,8 +120,11 @@ function throwHttp(status, provider) {
 
 // --- config + cache --------------------------------------------------------
 
-function cacheKey(url) {
-  return 'cache:' + url;
+// Keyed by article ID rather than URL, so the same article reached through a
+// different teaser link (tracking params, cross-site KL link, http/www variant)
+// is one cache entry instead of several.
+function cacheKey(id) {
+  return 'cache:' + id;
 }
 
 async function getConfig() {
@@ -137,16 +146,32 @@ async function getConfig() {
   return { provider, apiKey, model };
 }
 
-async function readCache(url) {
-  const key = cacheKey(url);
+async function readCache(id) {
+  const key = cacheKey(id);
   const got = await chrome.storage.local.get(key);
   const entry = got[key];
   if (entry && Date.now() - entry.ts < CACHE_TTL_MS) return entry.headline;
   return null;
 }
 
-async function writeCache(url, headline) {
-  await chrome.storage.local.set({ [cacheKey(url)]: { headline, ts: Date.now() } });
+async function writeCache(id, headline) {
+  await chrome.storage.local.set({ [cacheKey(id)]: { headline, ts: Date.now() } });
+}
+
+// Housekeeping on install/startup: entries only ever expired logically, so drop
+// the stale ones — plus any left over from when keys were full URLs, which no
+// lookup can ever hit again.
+async function pruneCache() {
+  const all = await chrome.storage.local.get(null);
+  const now = Date.now();
+  const dead = Object.keys(all).filter((k) => {
+    if (!k.startsWith('cache:')) return false;
+    if (k.includes('://')) return true; // pre-article-ID key
+    const entry = all[k];
+    return !entry || typeof entry.ts !== 'number' || now - entry.ts >= CACHE_TTL_MS;
+  });
+  if (dead.length) await chrome.storage.local.remove(dead);
+  return dead.length;
 }
 
 function sanitize(text) {
@@ -180,7 +205,8 @@ async function generateHeadline({ provider, apiKey, model, originalHeadline, bod
 // --- message handling -------------------------------------------------------
 
 async function handleRewrite({ url, originalHeadline, body }) {
-  const cached = await readCache(url);
+  const id = await articleKey(url);
+  const cached = await readCache(id);
   if (cached) return { headline: cached };
 
   const { provider, apiKey, model } = await getConfig();
@@ -189,7 +215,7 @@ async function handleRewrite({ url, originalHeadline, body }) {
   const headline = await generateHeadline({ provider, apiKey, model, originalHeadline, body });
   if (!headline) return { error: 'empty-output' };
 
-  await writeCache(url, headline);
+  await writeCache(id, headline);
   return { headline };
 }
 
@@ -223,6 +249,13 @@ function providerInfo() {
   }
   return out;
 }
+
+chrome.runtime.onInstalled.addListener(() => {
+  pruneCache().catch(() => {});
+});
+chrome.runtime.onStartup.addListener(() => {
+  pruneCache().catch(() => {});
+});
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!msg || !msg.type) return false;

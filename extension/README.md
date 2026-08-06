@@ -20,7 +20,11 @@ backend, no data leaves the browser except the article text sent to the LLM.
 3. While a headline is being killed, a spinning 💀 badge trails it; once the
    factual headline is swapped in, the badge turns into a subtle ✨. Hover the
    headline to see the original clickbait title.
-4. Results are cached per URL for 24h, so revisits are instant and free.
+4. Results are cached for 24h keyed by the **article ID** in the URL
+   (`art-2000012186173` → `is:2000012186173`, `/a/<uuid>` → `a:<uuid>`; anything
+   else falls back to a UUIDv5 of the normalized URL). Tracking params, `www.`
+   and cross-site links to the same article all share one entry, so revisits —
+   and the same story teased twice on a page — are instant and free.
 
 ## Install (load unpacked)
 
@@ -68,6 +72,7 @@ extension on/off or clear the cache from the popup.
 | `manifest.json` | MV3 manifest (matches, permissions, worker, popup) |
 | `content.js` | headline detection, lazy fetch+extract, text swap |
 | `extractors.js` | per-site body extraction (ported from `fi.py`) |
+| `articleid.js` | article ID from the URL (`is:`/`a:`, UUIDv5 fallback) — the cache key |
 | `prompts.js` | anti-clickbait prompt (ported from `prompts.py`) |
 | `background.js` | provider registry (Gemini/Claude/OpenAI) + per-URL cache |
 | `popup.html` / `popup.js` | provider, API key, model, toggle, counter, clear cache |

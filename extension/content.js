@@ -23,7 +23,10 @@
   let enabled = true;
   let inFlight = 0;
   const queue = [];
-  const urlCache = new Map(); // url -> Promise<string|null> (per-page dedupe)
+  // article id -> Promise<string|null>. Keyed by ID rather than URL so the same
+  // article teased twice on one page (carousel + list, differing query strings)
+  // is fetched and rewritten once.
+  const articleCache = new Map();
 
   // --- progress marker ------------------------------------------------------
   // A trailing badge whose glyph is a CSS ::after (so it never touches the
@@ -207,7 +210,12 @@
   // --- the per-headline pipeline -------------------------------------------
 
   async function fetchAndRewrite(url, originalHeadline) {
-    if (urlCache.has(url)) return urlCache.get(url);
+    // Synchronous on purpose: the ID must be resolved before the first await,
+    // or two headlines for the same article could both miss the map and fetch.
+    // Every URL that got this far matched ARTICLE_PATTERNS, so the ID lookup
+    // effectively always hits; the URL is a belt-and-braces fallback.
+    const id = globalThis.KlikintappajaIds.articleIdFromUrl(url) || url;
+    if (articleCache.has(id)) return articleCache.get(id);
     const p = (async () => {
       // Fetch via the service worker: content-script fetches can't go
       // cross-origin in MV3 even with host permission, and article links may
@@ -238,7 +246,7 @@
       }
       return reply.headline || null;
     })();
-    urlCache.set(url, p);
+    articleCache.set(id, p);
     return p;
   }
 
