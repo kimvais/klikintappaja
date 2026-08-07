@@ -24,8 +24,13 @@ manual upload.
 
 - `extension/` — the loadable/zippable extension:
   - `manifest.json`, `content.js`, `extractors.js`, `articleid.js`, `prompts.js`,
-    `background.js`, `popup.html`/`popup.js`, `icons/` (16/48/128 skull),
+    `background.js`, `hosted.js`, `popup.html`/`popup.js`,
+    `welcome.html`/`welcome.js`, `icons/` (16/48/128 skull),
     `README.md`, `PRIVACY.md`, `LICENSE`.
+- `backend/` — the shared-headline API (FastAPI + MongoDB Atlas on Cloud Run).
+  See `backend/README.md`. The server never calls an LLM.
+- `infra/` — Cloud Run service definition, `deploy.ps1`, GCP setup notes
+  (project `klikintappaja`, OAuth client IDs).
 - `store/` — Web Store listing assets (icon 128/512, 1280×800 before/after
   screenshot, 440×280 + 1400×560 promo tiles).
 - `build.ps1` — zips the **contents** of `extension/` → `klikintappaja-extension.zip`
@@ -72,7 +77,19 @@ manual upload.
    several links is fetched and rewritten once. Loaded in both contexts, so it is
    a classic IIFE on `globalThis.KlikintappajaIds` (like `extractors.js`),
    `import`ed for its side effect by the module SW.
-7. **Paywalls.** `fetchArticle` uses `credentials: 'include'` **on purpose** — it
+7. **Two sources of headlines**, chosen by `mode` in storage:
+   - `key` (original): own API key, article fetched and rewritten locally.
+   - `hosted`: `hosted.js` looks the article ID up in the shared API and stops —
+     **no article fetch, no LLM call, no key**. That is the whole point; the cost
+     is coverage, since an article nobody has contributed has no headline.
+   `hosted.js` picks its OAuth client from `chrome.runtime.id`, so the published
+   and unpacked builds each use their own without a constant to flip. Sign-in is
+   `launchWebAuthFlow` with `response_type=id_token`, scope `openid` only; the
+   nonce is checked client-side and the signature server-side. Key users may opt
+   in (`shareHeadlines`, off by default) to POST what they generate; that call is
+   fire-and-forget and must never affect the headline the user already has.
+   `welcome.html` opens once on `reason === 'install'` to make the mode choice.
+8. **Paywalls.** `fetchArticle` uses `credentials: 'include'` **on purpose** — it
    is what lets a logged-in IS Extra / Iltalehti Plus subscriber get real article
    text (and a real headline). `detectPaywall(doc, host, body)` returns
    `{ premium, locked }`: `premium` is the tier flag from the article itself
@@ -84,7 +101,7 @@ manual upload.
    marker 💀 → 🫰, `hide` sets `display:none`. `teaserUnit()` picks what to
    gray/hide by walking up only while the ancestor still covers exactly **one**
    distinct article, so a ticker or card grid can never be swallowed.
-8. **Cache validity is content-based, never transport-based.** `contentHash()`
+9. **Cache validity is content-based, never transport-based.** `contentHash()`
    (SHA-256 of the whitespace-collapsed extracted body, 64 bits hex) decides
    whether a cached headline still applies. This is exact rather than heuristic:
    the headline is a pure function of the prompt inputs, and the body is the only
@@ -169,3 +186,4 @@ manual upload.
   headers `x-api-key` + `anthropic-version: 2023-06-01` +
   `anthropic-dangerous-direct-browser-access: true`).
 - All executable code ships in the package; there is no build step beyond zipping.
+

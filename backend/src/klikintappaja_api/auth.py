@@ -42,11 +42,19 @@ class TokenVerifier:
         """Read configuration, falling back to the environment.
 
         Args:
-            client_id: OAuth client ID that ID tokens must be addressed to.
+            client_id: OAuth client ID(s) that ID tokens must be addressed to.
+                Accepts a comma-separated list, because development and
+                production builds of the extension have different extension IDs
+                and therefore need separate OAuth clients — a token from either
+                is legitimate.
             secret: HMAC key used to pseudonymise subject IDs.
 
         """
-        self._client_id = client_id or os.environ['GOOGLE_OAUTH_CLIENT_ID']
+        raw_ids = client_id or os.environ['GOOGLE_OAUTH_CLIENT_ID']
+        self._client_ids = [part.strip() for part in raw_ids.split(',') if part.strip()]
+        if not self._client_ids:
+            msg = 'GOOGLE_OAUTH_CLIENT_ID is empty'
+            raise ValueError(msg)
         self._secret = (secret or os.environ['SERVER_SECRET']).encode('utf-8')
         self._jwks = PyJWKClient(GOOGLE_JWKS_URL, cache_keys=True)
 
@@ -69,7 +77,10 @@ class TokenVerifier:
                 token,
                 signing_key.key,
                 algorithms=['RS256'],
-                audience=self._client_id,
+                # PyJWT accepts several audiences and passes if the token names
+                # any of them, which is what lets one deployment serve both the
+                # published extension and a local unpacked build.
+                audience=self._client_ids,
                 options={'require': ['exp', 'iat', 'iss', 'sub']},
             )
         except Exception as exc:  # PyJWT raises a wide family of decode errors

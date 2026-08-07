@@ -68,15 +68,49 @@
       <input type="checkbox" id="enabled" />
     </div>
 
-    <label for="provider">Tekoälypalvelu</label>
-    <select id="provider"></select>
+    <label for="mode">Otsikoiden lähde</label>
+    <select id="mode">
+      <option value="hosted">Yhteinen tietokanta (kirjaudu Googlella)</option>
+      <option value="key">Oma API-avain</option>
+    </select>
 
-    <label for="apiKey">API-avain</label>
-    <input type="password" id="apiKey" autocomplete="off" />
-    <div class="muted" id="keyHint"></div>
+    <div id="hostedBox">
+      <div class="muted">
+        Ei omaa API-avainta: otsikot haetaan muiden käyttäjien jo tuottamista.
+        Google-tili toimii vain käyttörajan tunnisteena — palvelu ei tallenna
+        sähköpostia eikä nimeä.
+      </div>
+      <div class="row">
+        <span id="authState">Ei kirjautunut</span>
+        <span>
+          <button id="signIn">Kirjaudu</button>
+          <button id="signOut">Kirjaudu ulos</button>
+        </span>
+      </div>
+      <div class="muted" id="userKey"></div>
+    </div>
 
-    <label for="model">Malli</label>
-    <input type="text" id="model" />
+    <div id="keyBox">
+      <label for="provider">Tekoälypalvelu</label>
+      <select id="provider"></select>
+
+      <label for="apiKey">API-avain</label>
+      <input type="password" id="apiKey" autocomplete="off" />
+      <div class="muted" id="keyHint"></div>
+
+      <label for="model">Malli</label>
+      <input type="text" id="model" />
+
+      <div class="row">
+        <span>Jaa tuottamani otsikot muille</span>
+        <input type="checkbox" id="shareHeadlines" />
+      </div>
+      <div class="muted">
+        Vapaaehtoinen. Lähettää tuottamasi otsikon ja artikkelin tekstin
+        yhteiseen tietokantaan. Vaatii erikseen myönnetyn oikeuden. Maksumuurin
+        takaisia juttuja ei jaeta koskaan.
+      </div>
+    </div>
 
     <label for="paywallMode">Maksumuurin takana</label>
     <select id="paywallMode">

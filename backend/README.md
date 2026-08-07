@@ -16,7 +16,7 @@ Every request needs `Authorization: Bearer <google-id-token>`.
 | --- | --- | --- |
 | `GET` | `/v1/headlines/{site}/{id}` | any signed-in user |
 | `POST` | `/v1/headlines/{site}/{id}` | approved contributors only |
-| `GET` | `/healthz` | open |
+| `GET` | `/health` | open |
 
 `{site}` is `is` or `il`; `{id}` is the publication's own article ID
 (`/v1/headlines/is/2000012186173`, `/v1/headlines/il/1ee556a4-…`). These map to
@@ -97,3 +97,4 @@ signed-in account.
 
 See [`../infra/`](../infra/) — Cloud Run service definition, secrets and the
 deploy script.
+

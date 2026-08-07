@@ -23,6 +23,7 @@
   ];
 
   let enabled = true;
+  let mode = 'key'; // key (own API key) | hosted (shared store, Google sign-in)
   let paywallMode = 'dim'; // off | dim (gray + 🫰) | hide
   let inFlight = 0;
   const queue = [];
@@ -297,6 +298,21 @@
 
   // --- the per-headline pipeline -------------------------------------------
 
+  // Hosted mode: ask the shared store for a headline by article ID and stop
+  // there. No article fetch, no LLM call, no API key — the ID comes from the
+  // front-page link alone, so this is both instant and free. The cost is
+  // coverage: an article nobody has contributed yet simply has no headline.
+  async function lookupShared(url) {
+    const reply = await chrome.runtime.sendMessage({ type: 'lookup', url });
+    if (!reply || reply.error) {
+      if (reply && reply.error && reply.error !== 'not-found') {
+        console.debug('[klikintappaja] lookup:', reply.error);
+      }
+      return null;
+    }
+    return reply.headline ? { headline: reply.headline } : null;
+  }
+
   async function fetchAndRewrite(url, originalHeadline) {
     // Synchronous on purpose: the ID must be resolved before the first await,
     // or two headlines for the same article could both miss the map and fetch.
@@ -304,6 +320,11 @@
     // effectively always hits; the URL is a belt-and-braces fallback.
     const id = globalThis.KlikintappajaIds.articleIdFromUrl(url) || url;
     if (articleCache.has(id)) return articleCache.get(id);
+    if (mode === 'hosted') {
+      const p = lookupShared(url);
+      articleCache.set(id, p);
+      return p;
+    }
     const p = (async () => {
       // Fetch via the service worker: content-script fetches can't go
       // cross-origin in MV3 even with host permission, and article links may
@@ -329,7 +350,11 @@
       const pw = globalThis.UutisExtractors.detectPaywall(doc, host, body);
       if (pw.locked && paywallMode !== 'off') return { paywalled: pw.premium };
       if (!body || body.length < 120) return null; // not enough ground truth
+      // Passed on even when paywallMode is 'off' and we are about to rewrite it
+      // anyway: whether to *show* a locked article is a display preference,
+      // whether to *share* one is not, and the two must not be conflated.
       const reply = await chrome.runtime.sendMessage({
+        paywalled: pw.locked,
         type: 'rewrite',
         url,
         originalHeadline,
@@ -435,9 +460,10 @@
     mo.observe(document.body, { childList: true, subtree: true });
   }
 
-  chrome.storage.local.get({ enabled: true, paywallMode: 'dim' }, (cfg) => {
+  chrome.storage.local.get({ enabled: true, paywallMode: 'dim', mode: 'key' }, (cfg) => {
     enabled = cfg.enabled !== false;
     if (PAYWALL_MODES.includes(cfg.paywallMode)) paywallMode = cfg.paywallMode;
+    if (cfg.mode === 'hosted' || cfg.mode === 'key') mode = cfg.mode;
     if (enabled) start();
   });
 
@@ -446,6 +472,10 @@
     if (changes.enabled) {
       enabled = changes.enabled.newValue !== false;
       if (enabled) start();
+    }
+    if (changes.mode) {
+      const next = changes.mode.newValue;
+      if (next === 'hosted' || next === 'key') mode = next;
     }
     if (changes.paywallMode) {
       const next = changes.paywallMode.newValue;

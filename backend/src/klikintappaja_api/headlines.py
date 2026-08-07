@@ -64,6 +64,13 @@ class HeadlineResponse(BaseModel):
     generated_at: datetime.datetime
 
 
+class WhoAmI(BaseModel):
+    """The caller's pseudonymous key and whether it may contribute."""
+
+    user_key: str
+    contributor: bool
+
+
 def get_database(request: Request) -> Database:
     """Provide the shared database handle."""
     return request.app.state.db
@@ -123,6 +130,20 @@ def _as_response(headline: Headline) -> HeadlineResponse:
         model=headline.model,
         generated_at=headline.generated_at,
     )
+
+
+@router.get('/me', response_model=WhoAmI)
+async def whoami(db: DbDep, caller: CallerDep) -> WhoAmI:
+    """Report the caller's pseudonymous key.
+
+    Approval is granted by key (`klikintappaja-api-tool approve-user <key>`), and
+    the key is an HMAC only the server can compute — so without this endpoint a
+    would-be contributor has no way to learn what to ask to be approved.
+
+    Declared before `/{site}/{article_id}` so that `me` is not swallowed by the
+    site parameter.
+    """
+    return WhoAmI(user_key=caller.user_key, contributor=await db.is_contributor(caller.user_key))
 
 
 @router.get('/{site}/{article_id}', response_model=HeadlineResponse)
@@ -216,9 +237,16 @@ async def contribute_headline(
 health_router = APIRouter(tags=['ops'])
 
 
-@health_router.get('/healthz')
+@health_router.get('/health')
 async def health(db: DbDep) -> dict:
-    """Report whether the database is reachable."""
+    """Report whether the database is reachable.
+
+    Deliberately not `/healthz`: on Cloud Run that exact path is intercepted by
+    the Google frontend and answered with its own 404, so the request never
+    reaches the container. Measured — every other path, `/healthz2` included,
+    routes normally. Container probes are unaffected either way because they
+    bypass the frontend, which is what makes the mistake easy to miss.
+    """
     try:
         return await db.ping()
     except Exception as exc:

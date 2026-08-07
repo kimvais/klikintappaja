@@ -144,13 +144,37 @@ async def test_purge_removes_only_that_contributors_work(db: FakeDatabase):
     assert set(db.headlines) == {'is:2'}
 
 
+# --- identity ---------------------------------------------------------------
+
+
+def test_whoami_requires_a_token(client: TestClient):
+    assert client.get('/v1/headlines/me').status_code == 401
+
+
+def test_whoami_reports_key_and_reader_status(client: TestClient, auth: dict):
+    body = client.get('/v1/headlines/me', headers=auth).json()
+    assert body['user_key']
+    assert body['contributor'] is False
+
+
+def test_whoami_reports_contributor_status(client: TestClient, contributor: dict):
+    body = client.get('/v1/headlines/me', headers=contributor).json()
+    assert body['user_key'] == CONTRIBUTOR_KEY
+    assert body['contributor'] is True
+
+
+def test_me_is_not_mistaken_for_a_site(client: TestClient, auth: dict):
+    """`/me` must not be routed as `{site}=me`, which would 404 instead."""
+    assert client.get('/v1/headlines/me', headers=auth).status_code == 200
+
+
 # --- ops --------------------------------------------------------------------
 
 
 def test_healthz_is_open(client: TestClient):
-    assert client.get('/healthz').status_code == 200
+    assert client.get('/health').status_code == 200
 
 
 def test_healthz_reports_database_trouble(client: TestClient, db: FakeDatabase):
     db.ping_fails = True
-    assert client.get('/healthz').status_code == 503
+    assert client.get('/health').status_code == 503

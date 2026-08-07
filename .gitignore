@@ -14,4 +14,9 @@ dist/
 Thumbs.db
 .idea/
 .vscode/
+# Secrets. `.env` alone matches only that exact filename, which let
+# atlas-credentials.env slip past — match any *.env instead.
 .env
+*.env
+*credentials*
+!extension/**

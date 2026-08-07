@@ -12,6 +12,7 @@ import { SYSTEM_INSTRUCTION, HARDCORE_FINNISH, buildHeadlinePrompt } from './pro
 // content scripts can't be modules), so it is imported for its side effect and
 // read off globalThis — same arrangement as extractors.js on the content side.
 import './articleid.js';
+import * as hosted from './hosted.js';
 
 const { articleKey, contentHash } = globalThis.KlikintappajaIds;
 
@@ -238,7 +239,7 @@ async function generateHeadline({ provider, apiKey, model, originalHeadline, bod
 
 // --- message handling -------------------------------------------------------
 
-async function handleRewrite({ url, originalHeadline, body, mod }) {
+async function handleRewrite({ url, originalHeadline, body, mod, paywalled }) {
   const id = await articleKey(url);
   const sha = await contentHash(body);
   // Config is read before the cache check (it is key-independent) because the
@@ -254,7 +255,48 @@ async function handleRewrite({ url, originalHeadline, body, mod }) {
   if (!headline) return { error: 'empty-output' };
 
   await writeCache(id, { headline, sha, mod, provider, model, original: originalHeadline });
+
+  // Share it, if the user opted in. Deliberately not awaited into the result:
+  // a failed contribution — offline, not approved, rate-limited — must never
+  // cost the user the headline they just paid to generate.
+  shareHeadline({
+    id,
+    headline,
+    body,
+    originalHeadline,
+    provider,
+    model,
+    paywalled: Boolean(paywalled),
+  }).catch((err) => console.debug('[klikintappaja] share failed:', err));
+
   return { headline };
+}
+
+// --- hosted (shared) headlines ---------------------------------------------
+
+// Look a headline up in the shared store. This is the whole point of the hosted
+// mode: no article fetch, no LLM call, no API key — just the article ID, which
+// is derivable from the front-page link alone.
+async function handleLookup({ url }) {
+  const id = await articleKey(url);
+  const { data, error } = await hosted.lookupHeadline(id);
+  if (error) return { error };
+  return { headline: data.headline, sha: data.sha };
+}
+
+async function shareHeadline({ id, headline, body, originalHeadline, provider, model, paywalled }) {
+  const { shareHeadlines } = await chrome.storage.local.get({ shareHeadlines: false });
+  if (!shareHeadlines) return;
+  if (paywalled) return; // never contribute subscriber-only text
+  const { error } = await hosted.contributeHeadline(id, {
+    headline,
+    body,
+    original_headline: originalHeadline || null,
+    provider,
+    model,
+    paywalled: false,
+  });
+  if (error) console.debug('[klikintappaja] contribution rejected:', error);
 }
 
 // Fetch article HTML on behalf of the content script. The service worker can
@@ -294,8 +336,14 @@ function providerInfo() {
   return out;
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   pruneCache().catch(() => {});
+  // Only on a genuine first install — not on every update, and not when Chrome
+  // itself updates. A new user otherwise has no idea a choice exists between
+  // signing in and bringing their own key.
+  if (details.reason === 'install') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') }).catch(() => {});
+  }
 });
 chrome.runtime.onStartup.addListener(() => {
   pruneCache().catch(() => {});
@@ -323,9 +371,49 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     clearCache().then((n) => sendResponse({ cleared: n }));
     return true;
   }
+  if (msg.type === 'lookup') {
+    handleLookup(msg)
+      .then(sendResponse)
+      .catch((err) => sendResponse({ error: String((err && err.message) || err) }));
+    return true; // async
+  }
   if (msg.type === 'providers') {
     sendResponse({ providers: providerInfo(), default: DEFAULT_PROVIDER });
     return false;
+  }
+  if (msg.type === 'signIn') {
+    hosted
+      .signIn()
+      .then((ok) => sendResponse({ ok }))
+      .catch((err) => sendResponse({ error: String((err && err.message) || err) }));
+    return true;
+  }
+  if (msg.type === 'signOut') {
+    hosted.signOut().then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (msg.type === 'authStatus') {
+    // `whoami` also tells the user their pseudonymous key, which is what they
+    // must quote to be approved as a contributor.
+    hosted
+      .isSignedIn()
+      .then(async (signedIn) => {
+        if (!signedIn) return { signedIn: false, configured: hosted.isConfigured() };
+        const { data, error } = await hosted.whoami();
+        return {
+          signedIn: true,
+          configured: hosted.isConfigured(),
+          userKey: data ? data.user_key : null,
+          contributor: Boolean(data && data.contributor),
+          // Reported separately from `error`: being signed in with the API
+          // unreachable is a different situation from failing to sign in, and
+          // conflating them sends you debugging the wrong half.
+          apiError: error || null,
+        };
+      })
+      .then(sendResponse)
+      .catch((err) => sendResponse({ error: String((err && err.message) || err) }));
+    return true;
   }
   return false;
 });

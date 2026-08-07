@@ -18,16 +18,59 @@ environments. If this grows into that, the port is straightforward and the YAML
 here documents exactly what needs to be expressed. Until then a second toolchain
 would be a liability.
 
+## The project
+
+| | |
+| --- | --- |
+| Project ID | `klikintappaja` |
+| Project number | `609693124228` |
+| Created | 2026-08-07 (`gcloud projects create`) |
+
+Billing must be linked before Cloud Run or Artifact Registry will work.
+
+## OAuth clients
+
+Two **Web application** clients, created at
+[Google Auth Platform → Clients](https://console.cloud.google.com/auth/clients?project=klikintappaja).
+The consent screen must exist first (External, scope `openid` only, published to
+Production — a *Testing* app admits only listed test users, max 100).
+
+| | Extension ID | Authorized redirect URI |
+| --- | --- | --- |
+| Production | `jcdabpknfbcbcdbipfclhknoglhgecjl` | `https://jcdabpknfbcbcdbipfclhknoglhgecjl.chromiumapp.org/` |
+| Development | `kajoffjdobhgpgbapccbnjhoegfadbdg` | `https://kajoffjdobhgpgbapccbnjhoegfadbdg.chromiumapp.org/` |
+
+Leave **Authorized JavaScript origins** empty — `launchWebAuthFlow` navigates a
+webview and returns via the redirect, so no JS origin is involved, and Google
+rejects `chrome-extension://` values there anyway. The redirect URI must match
+exactly, trailing slash included; it is what `chrome.identity.getRedirectURL()`
+returns.
+
+The development ID is derived from the absolute path of the unpacked `extension/`
+directory. It is stable as long as that path is, and changes if the repo moves or
+is cloned elsewhere — at which point this table and that client need updating.
+(The alternative, pinning it with a `"key"` in the manifest so both builds share
+the published ID, was considered and deliberately not taken.)
+
+Both client IDs go to the service as one value; a token naming either is accepted,
+and the same Google account maps to the same pseudonymous key through both:
+
+```
+GOOGLE_OAUTH_CLIENT_ID=<prod>.apps.googleusercontent.com,<dev>.apps.googleusercontent.com
+```
+
 ## One-time setup
 
 ```powershell
-$env:PROJECT_ID = 'your-project'
+$env:PROJECT_ID = 'klikintappaja'
 $env:REGION     = 'europe-north1'
 
 gcloud config set project $env:PROJECT_ID
-gcloud services enable run.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com
+# cloudbuild is needed too: deploy.ps1 builds the image with `gcloud builds submit`.
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com `
+  secretmanager.googleapis.com cloudbuild.googleapis.com
 
-# Image repository
+# Image repository -> europe-north1-docker.pkg.dev/klikintappaja/klikintappaja
 gcloud artifacts repositories create klikintappaja `
   --repository-format=docker --location=$env:REGION
 
@@ -62,7 +105,7 @@ gcloud run services add-iam-policy-binding klikintappaja-api `
 ## Deploying
 
 ```powershell
-./infra/deploy.ps1 -ProjectId your-project -Region europe-north1 -Tag v0.1.0
+./infra/deploy.ps1 -ProjectId klikintappaja -Region europe-north1 -Tag v0.1.0
 ```
 
 ## MongoDB Atlas

@@ -21,6 +21,11 @@ spec:
   template:
     metadata:
       annotations:
+        # Stamped by deploy.ps1. Without something that changes per deploy,
+        # `gcloud run services replace` sees an identical template and retries
+        # the existing revision instead of creating a new one — so a failed
+        # revision never picks up, say, a corrected secret.
+        klikintappaja.dev/deploy-stamp: 'DEPLOY_STAMP'
         # Scale to zero when idle — this is what keeps the running cost near
         # nothing while the service is a prototype.
         autoscaling.knative.dev/minScale: '0'
@@ -60,14 +65,15 @@ spec:
               memory: 512Mi
           startupProbe:
             httpGet:
-              path: /healthz
+              path: /health
             initialDelaySeconds: 2
             periodSeconds: 5
             failureThreshold: 6
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /health
             periodSeconds: 60
   traffic:
     - percent: 100
       latestRevision: true
+
