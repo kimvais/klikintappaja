@@ -14,6 +14,11 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # The store credentials and PUBLISH_TO_CWS live in this environment, and
+    # `vars`/`secrets` only resolve from an environment the job declares. Without
+    # this line the publish steps see empty values, their `if` evaluates false,
+    # and they skip silently — a GitHub Release with no store upload and no error.
+    environment: production
     steps:
       - uses: actions/checkout@v7
 

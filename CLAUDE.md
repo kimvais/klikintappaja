@@ -160,6 +160,11 @@ manual upload.
   from fetched content, no external `<script>`/CDN, no `eval`.
 - Finnish strings and store text must keep correct diacritics (*Jälkeen*,
   *tekoälyn*, etc.).
+- `extension/PRIVACY.md` and `extension/PRIVACY-fi.md` describe the same policy in
+  two languages — **change both or neither**. English is authoritative (stated in
+  both files) and is what the Web Store's privacy-policy URL points at; the
+  Finnish one exists because the users are Finnish. Any change to what data
+  leaves the browser touches both, plus the Web Store data disclosures.
 
 ## Dev workflow
 

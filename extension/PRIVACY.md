@@ -2,6 +2,9 @@
 
 _Last updated: 2026-08-07_
 
+> Suomeksi: [PRIVACY-fi.md](PRIVACY-fi.md). This English version is the
+> authoritative one if the two ever disagree.
+
 Klikintappaja is a browser extension that replaces clickbait headlines on Finnish
 news sites with factual ones. It collects **no analytics and no telemetry**, and
 nothing is sold or shared for advertising.
