@@ -1,0 +1,73 @@
+# Cloud Run service definition for the Klikintappaja shared-headline API.
+#
+# Apply with:  gcloud run services replace infra/cloudrun-service.yaml --region=europe-north1
+# (infra/deploy.ps1 builds the image and does this for you.)
+#
+# Placeholders to substitute before first use:
+#   PROJECT_ID  - your Google Cloud project
+#   REGION      - deployment region (europe-north1 keeps Finnish users close)
+#   IMAGE_TAG   - Artifact Registry image, e.g. :v0.1.0 or a commit SHA
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: klikintappaja-api
+  labels:
+    cloud.googleapis.com/location: REGION
+  annotations:
+    # Public service: the API does its own authentication with Google ID tokens,
+    # so Cloud Run's IAM layer must not also demand one.
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        # Scale to zero when idle — this is what keeps the running cost near
+        # nothing while the service is a prototype.
+        autoscaling.knative.dev/minScale: '0'
+        autoscaling.knative.dev/maxScale: '4'
+        run.googleapis.com/startup-cpu-boost: 'true'
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 30
+      serviceAccountName: klikintappaja-api@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/klikintappaja/api:IMAGE_TAG
+          ports:
+            - name: http1
+              containerPort: 8080
+          env:
+            # Not a secret: the OAuth client ID is public by design, it is the
+            # audience the ID token must be addressed to.
+            - name: GOOGLE_OAUTH_CLIENT_ID
+              value: 'REPLACE_WITH_OAUTH_CLIENT_ID'
+            - name: LOG_LEVEL
+              value: 'INFO'
+            # These two are secrets and are mounted from Secret Manager, never
+            # baked into the image or this file.
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: klikintappaja-mongodb-uri
+                  key: latest
+            - name: SERVER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: klikintappaja-server-secret
+                  key: latest
+          resources:
+            limits:
+              cpu: '1'
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /healthz
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+            periodSeconds: 60
+  traffic:
+    - percent: 100
+      latestRevision: true

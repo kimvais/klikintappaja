@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "klikintappaja-api"
+version = "0.1.0"
+description = "Community-powered shared store of de-clickbaited headlines"
+authors = [
+    { name = "Kimmo Parviainen-Jalanko", email = "kimvais@kimva.is" },
+]
+license = { text = "MIT" }
+requires-python = ">=3.13"
+# Deliberately no LLM SDK: contributors generate headlines with their own keys
+# and send the finished text. The server never calls a model.
+dependencies = [
+    "fastapi",
+    "pyjwt[crypto]",
+    "pymongo>=4.9",
+    "uvicorn",
+]
+
+[project.optional-dependencies]
+server = [
+    "gunicorn",
+]
+
+[dependency-groups]
+dev = [
+    "httpx",
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+]
+
+[project.scripts]
+klikintappaja-api-tool = "klikintappaja_api.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/klikintappaja_api"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["ARG", "B", "C4", "C90", "D", "E", "F", "I", "N", "PTH", "RET", "RUF", "SIM", "UP", "W"]
+ignore = ["D203", "D213"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D100", "D101", "D102", "D103"]
+
+[tool.ruff.format]
+quote-style = "single"

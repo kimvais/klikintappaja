@@ -1,6 +1,14 @@
 # Build artifact (produced by build.ps1 / CI)
 /klikintappaja-extension.zip
 
+# Python (backend/)
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db

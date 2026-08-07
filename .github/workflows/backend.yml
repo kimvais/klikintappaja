@@ -1,0 +1,54 @@
+name: backend
+
+# Lint and test the shared-headline API. The extension workflow filters on
+# extension/**, so backend changes would otherwise run no checks at all.
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+
+      # Node is required, not optional: tests/test_articles.py compares the
+      # server's content hash against the extension's real JavaScript. Without
+      # node that test skips silently, which is the one failure mode that would
+      # let the two implementations drift apart unnoticed.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - uses: astral-sh/setup-uv@v9
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --all-extras --dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Test
+        run: uv run pytest -q
+
+      - name: Assert the cross-language hash test actually ran
+        run: |
+          uv run pytest tests/test_articles.py::test_hash_matches_the_extension -q \
+            | tee result.txt
+          grep -q '1 passed' result.txt

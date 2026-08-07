@@ -1,0 +1,5 @@
+# Files that are consumed inside a Linux container must keep LF endings. A CRLF
+# landing after the backslash line-continuation in backend/Dockerfile's CMD
+# breaks `docker build`, and it would only show up when deploying, not locally.
+Dockerfile text eol=lf
+*.sh text eol=lf
