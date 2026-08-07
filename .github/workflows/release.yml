@@ -45,6 +45,31 @@ jobs:
         shell: pwsh
         run: ./build.ps1
 
+      # Publishing is opt-in, so a missing variable is indistinguishable from a
+      # deliberate skip. Say out loud which stores this run will reach, and fail
+      # early if publishing is switched on but a credential is absent — better
+      # than a green run that quietly shipped nothing.
+      - name: Report publishing targets
+        env:
+          CWS_ON: ${{ vars.PUBLISH_TO_CWS }}
+          EDGE_ON: ${{ vars.PUBLISH_TO_EDGE }}
+          HAVE_CWS: ${{ secrets.CWS_EXTENSION_ID != '' }}
+          HAVE_EDGE: ${{ secrets.EDGE_PRODUCT_ID != '' }}
+        run: |
+          echo "Chrome Web Store : ${CWS_ON:-unset} (credentials present: $HAVE_CWS)"
+          echo "Edge Add-ons     : ${EDGE_ON:-unset} (credentials present: $HAVE_EDGE)"
+          fail=0
+          if [ "$CWS_ON" = "true" ] && [ "$HAVE_CWS" != "true" ]; then
+            echo "::error::PUBLISH_TO_CWS is true but CWS_* secrets are missing"; fail=1
+          fi
+          if [ "$EDGE_ON" = "true" ] && [ "$HAVE_EDGE" != "true" ]; then
+            echo "::error::PUBLISH_TO_EDGE is true but EDGE_* secrets are missing"; fail=1
+          fi
+          if [ "$CWS_ON" != "true" ] && [ "$EDGE_ON" != "true" ]; then
+            echo "::warning::No store publishing enabled; this tag only produces a GitHub Release"
+          fi
+          exit $fail
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
