@@ -39,6 +39,8 @@ manual upload.
 - `.github/workflows/release.yml` — on `v*` tag: validate, assert tag ==
   manifest version, build, GitHub Release, optional Web Store publish.
 - `PUBLISHING.md` — release + Web Store publishing guide and repo settings.
+- `CHANGELOG-fi.md` — user-facing changelog, in Finnish, one entry per manifest
+  version. Kept in step with the manifest (see Dev workflow).
 - `LICENSE` — MIT, © 2026 Kimmo Parviainen-Jalanko. An **identical copy** lives at
   `extension/LICENSE` so the shipped zip carries it; keep the two in sync.
 
@@ -164,8 +166,15 @@ manual upload.
 - Validate: `node --check extension/*.js` and `JSON.parse` the manifest.
 - Build / test locally: `pwsh ./build.ps1`, then load `extension/` unpacked at
   `chrome://extensions` (Developer mode).
-- Release: bump `extension/manifest.json` version → `git tag vX.Y.Z && git push
-  --tags`. CI builds, creates the GitHub Release, and (if configured) publishes
+- **Bumping `extension/manifest.json` version ⇒ add a `CHANGELOG-fi.md` entry in
+  the same change.** Never bump one without the other. The entry is written **in
+  Finnish** (correct diacritics — see the invariants), newest first, under
+  `## <versio> — <päivämäärä>` with `### Lisätty` / `### Muutettu` / `### Korjattu`
+  as needed. Describe what a *user* notices, not the commits: "maksumuurin
+  takaiset jutut häivytetään" rather than "added detectPaywall()". Mark an
+  unreleased version `— julkaisematta` and date it when the tag is pushed.
+- Release: bump `extension/manifest.json` version → **write the changelog entry**
+  → `git tag vX.Y.Z && git push --tags`. CI builds, creates the GitHub Release, and (if configured) publishes
   to the Web Store. The tag must match the manifest version or the release job
   fails by design.
 - Web Store auto-publish is opt-in via repo variable `PUBLISH_TO_CWS=true` +
