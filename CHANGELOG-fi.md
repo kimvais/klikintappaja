@@ -4,7 +4,7 @@ Kaikki huomionarvoiset muutokset kirjataan tähän tiedostoon. Versionumerot ova
 samat kuin `extension/manifest.json`-tiedostossa, ja jokainen julkaisu vastaa
 `v<versio>`-tagia.
 
-## 0.2.0 — julkaisematta
+## 0.2.0 — 2026-08-07
 
 Iso muutos: laajennuksen voi nyt ottaa käyttöön **ilman omaa API-avainta**.
 
