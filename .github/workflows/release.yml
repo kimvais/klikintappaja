@@ -88,25 +88,56 @@ jobs:
           REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
         run: |
           set -euo pipefail
+
+          # Note the absence of curl's -f. With it, a failing call prints nothing
+          # but an exit code, and the Web Store API puts the actual reason in the
+          # response body — which is exactly what you need when a publish is
+          # refused. Bodies are echoed and statuses checked explicitly instead.
+          api() {
+            local method="$1" url="$2"; shift 2
+            local body status
+            body=$(curl -sS -X "$method" -w '\n%{http_code}' \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "x-goog-api-version: 2" "$@" "$url")
+            status=$(tail -n1 <<<"$body")
+            body=$(sed '$d' <<<"$body")
+            echo "$body"
+            if [ "$status" -ge 400 ]; then
+              echo "::error::$method $url returned $status"
+              return 1
+            fi
+          }
+
           echo "Getting access token…"
-          TOKEN=$(curl -sf -X POST https://oauth2.googleapis.com/token \
+          token_response=$(curl -sS -X POST https://oauth2.googleapis.com/token \
             -d client_id="$CLIENT_ID" \
             -d client_secret="$CLIENT_SECRET" \
             -d refresh_token="$REFRESH_TOKEN" \
-            -d grant_type=refresh_token | jq -r .access_token)
+            -d grant_type=refresh_token)
+          TOKEN=$(jq -r '.access_token // empty' <<<"$token_response")
+          if [ -z "$TOKEN" ]; then
+            # Most often the refresh token and the client no longer match.
+            echo "::error::token request failed: $(jq -rc '{error,error_description}' <<<"$token_response")"
+            exit 1
+          fi
+
           echo "Uploading new package…"
-          curl -sf -X PUT \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "x-goog-api-version: 2" \
-            -T klikintappaja-extension.zip \
-            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$EXT_ID"
+          upload=$(api PUT "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$EXT_ID" \
+            -T klikintappaja-extension.zip)
+          # An upload can fail *with* HTTP 200: the verdict is in uploadState.
+          if [ "$(jq -r '.uploadState // empty' <<<"$upload")" = "FAILURE" ]; then
+            echo "::error::upload rejected: $(jq -rc '.itemError // .' <<<"$upload")"
+            exit 1
+          fi
+
           echo "Submitting for publication…"
-          curl -sf -X POST \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "x-goog-api-version: 2" \
-            -H "Content-Length: 0" \
-            "https://www.googleapis.com/chromewebstore/v1.1/items/$EXT_ID/publish"
-          echo "Done."
+          publish=$(api POST "https://www.googleapis.com/chromewebstore/v1.1/items/$EXT_ID/publish" \
+            -H "Content-Length: 0")
+          if jq -e '.status? // [] | index("ITEM_NOT_UPDATABLE")' <<<"$publish" >/dev/null 2>&1; then
+            echo "::error::the item cannot be published right now — a previous submission is usually still in review, or the listing has unfinished required fields (new permissions need their data disclosures completed)"
+            exit 1
+          fi
+          echo "Done. The package is uploaded; review can take days."
 
       # --- Optional Microsoft Edge Add-ons publish --------------------------
       # Same zip, different store. Opt in with repository variable
