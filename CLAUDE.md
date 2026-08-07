@@ -13,8 +13,12 @@ into this standalone repo. The anti-clickbait prompt and the per-site article
 extractors were **ported from `uutis`** (`src/uutis/prompts.py`,
 `src/uutis/crawler/sources/fi.py`).
 
-**Chrome Web Store:** extension ID `jcdabpknfbcbcdbipfclhknoglhgecjl` (submitted
-for review; first upload was manual).
+**Chrome Web Store:** **published** as of 2026-08-07 — extension ID
+`jcdabpknfbcbcdbipfclhknoglhgecjl`
+([listing](https://chromewebstore.google.com/detail/jcdabpknfbcbcdbipfclhknoglhgecjl)).
+The first upload was manual, and the store is still serving **0.1.0**; later
+versions reach it only via `PUBLISH_TO_CWS` (see `PUBLISHING.md`) or another
+manual upload.
 
 ## Layout
 
@@ -150,6 +154,13 @@ for review; first upload was manual).
 - Web Store auto-publish is opt-in via repo variable `PUBLISH_TO_CWS=true` +
   secrets `CWS_EXTENSION_ID`/`CWS_CLIENT_ID`/`CWS_CLIENT_SECRET`/`CWS_REFRESH_TOKEN`.
   See `PUBLISHING.md` for the exact repo settings.
+- **Edge Add-ons** auto-publish is opt-in the same way: `PUBLISH_TO_EDGE=true` +
+  secrets `EDGE_PRODUCT_ID`/`EDGE_CLIENT_ID`/`EDGE_API_KEY`. Same zip, Update
+  REST API **v1.1** (`Authorization: ApiKey` + `X-ClientID`; v1's access-token
+  flow died end of 2024). Both store steps only *update* an existing listing —
+  first submission is manual. Brave/Vivaldi need no publishing of their own; they
+  install from the Chrome Web Store. Do **not** add a `.crx` build: stores take
+  the zip and sign it themselves, and self-hosted `.crx` installs are Linux-only.
 
 ## Environment
 

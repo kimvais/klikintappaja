@@ -2,13 +2,12 @@
 
 [![Latest release](https://img.shields.io/github/v/release/kimvais/klikintappaja?label=release&color=blue)](https://github.com/kimvais/klikintappaja/releases/latest)
 [![Build](https://img.shields.io/github/actions/workflow/status/kimvais/klikintappaja/build.yml?branch=main&label=build)](https://github.com/kimvais/klikintappaja/actions/workflows/build.yml)
-[![Chrome Web Store](https://img.shields.io/badge/chrome%20web%20store-in%20review-yellow)](#install-unpacked)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/jcdabpknfbcbcdbipfclhknoglhgecjl?label=chrome%20web%20store&color=blue)](https://chromewebstore.google.com/detail/jcdabpknfbcbcdbipfclhknoglhgecjl)
 [![Manifest V3](https://img.shields.io/badge/manifest-v3-555)](extension/manifest.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-<!-- Once the Web Store listing goes live, replace the static "in review" badge
-     above with the real ones (they render "not found" in red until then):
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/jcdabpknfbcbcdbipfclhknoglhgecjl?label=chrome%20web%20store)](https://chromewebstore.google.com/detail/jcdabpknfbcbcdbipfclhknoglhgecjl)
+<!-- Add these once the listing has actual installs/ratings — until then both
+     shields endpoints resolve to a red "not found":
 [![Users](https://img.shields.io/chrome-web-store/users/jcdabpknfbcbcdbipfclhknoglhgecjl)](https://chromewebstore.google.com/detail/jcdabpknfbcbcdbipfclhknoglhgecjl)
 [![Rating](https://img.shields.io/chrome-web-store/rating/jcdabpknfbcbcdbipfclhknoglhgecjl)](https://chromewebstore.google.com/detail/jcdabpknfbcbcdbipfclhknoglhgecjl)
 -->
@@ -24,14 +23,23 @@ As each headline scrolls into view, the extension fetches the linked article,
 extracts its text, and asks your chosen AI provider to write a factual headline
 from the **actual content** (never guessing from the clickbait title). A spinning
 💀 marks work in progress; a subtle ✨ marks a killed clickbait. Results are
-cached per URL for 24h.
+cached for 24h per article, and regenerated when the article itself is edited —
+so a developing story gets a fresh headline rather than a stale one.
 
 Fully client-side: no backend, no analytics. The only data that leaves your
 browser is the article text sent to the AI provider you selected.
 
-## Install (unpacked)
+## Install
 
-While the Chrome Web Store review is pending, this is the way to install it.
+**[➜ Get it from the Chrome Web Store](https://chromewebstore.google.com/detail/jcdabpknfbcbcdbipfclhknoglhgecjl)**
+— also the way to install it in Brave, Vivaldi and other Chromium browsers,
+which have no separate store.
+
+Then open the popup, choose a provider, paste your API key, **Tallenna** (Save).
+
+### Install unpacked (development, or to run the newest code)
+
+The store version can lag behind `main`. To run the latest:
 
 1. Download
    **[`klikintappaja-extension.zip`](https://github.com/kimvais/klikintappaja/releases/latest/download/klikintappaja-extension.zip)**

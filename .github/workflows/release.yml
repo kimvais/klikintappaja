@@ -77,3 +77,74 @@ jobs:
             -H "Content-Length: 0" \
             "https://www.googleapis.com/chromewebstore/v1.1/items/$EXT_ID/publish"
           echo "Done."
+
+      # --- Optional Microsoft Edge Add-ons publish --------------------------
+      # Same zip, different store. Opt in with repository variable
+      # PUBLISH_TO_EDGE = true plus the three EDGE_* secrets (see PUBLISHING.md).
+      #
+      # Uses the Update REST API v1.1 (API key auth; v1's access-token flow was
+      # retired at the end of 2024). The API can only update a product that
+      # already exists — the first submission has to be made by hand in Partner
+      # Center, exactly like the Web Store.
+      #
+      # `!cancelled()` rather than `success()`: the two stores are independent,
+      # so a Chrome Web Store outage should not stop the Edge upload.
+      - name: Publish to Microsoft Edge Add-ons
+        if: ${{ !cancelled() && vars.PUBLISH_TO_EDGE == 'true' }}
+        env:
+          PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+          CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+          API_KEY: ${{ secrets.EDGE_API_KEY }}
+        run: |
+          set -euo pipefail
+          API=https://api.addons.microsoftedge.microsoft.com
+          BASE="$API/v1/products/$PRODUCT_ID"
+          auth=(-H "Authorization: ApiKey $API_KEY" -H "X-ClientID: $CLIENT_ID")
+
+          # The operation ID comes back in the Location header, which may be a
+          # bare ID or a path — take the last segment either way.
+          location_id() {
+            tr -d '\r' < "$1" | awk 'tolower($1) == "location:" { print $2 }' | tail -n1 | sed 's#.*/##'
+          }
+
+          # Poll an operation until it leaves InProgress. Succeeded -> 0.
+          poll() {
+            local url="$1" label="$2" body status
+            for _ in $(seq 1 60); do
+              body=$(curl -sS "${auth[@]}" "$url")
+              status=$(jq -r '.status // "Unknown"' <<<"$body")
+              case "$status" in
+                Succeeded) echo "$label: succeeded"; return 0 ;;
+                InProgress) sleep 10 ;;
+                *)
+                  echo "::error::$label failed: $(jq -c '{status,message,errorCode,errors}' <<<"$body" 2>/dev/null || echo "$body")"
+                  return 1 ;;
+              esac
+            done
+            echo "::error::$label timed out after 10 minutes"
+            return 1
+          }
+
+          echo "Uploading package…"
+          code=$(curl -sS -o upload.txt -D upload.headers -w '%{http_code}' -X POST \
+            "${auth[@]}" \
+            -H "Content-Type: application/zip" \
+            --data-binary @klikintappaja-extension.zip \
+            "$BASE/submissions/draft/package")
+          if [ "$code" != "202" ]; then
+            echo "::error::package upload returned $code"; cat upload.txt; exit 1
+          fi
+          poll "$BASE/submissions/draft/package/operations/$(location_id upload.headers)" "Package upload"
+
+          echo "Submitting draft for certification…"
+          code=$(curl -sS -o publish.txt -D publish.headers -w '%{http_code}' -X POST \
+            "${auth[@]}" \
+            -H "Content-Type: application/json" \
+            -d "{\"notes\":\"Automated release of $GITHUB_REF_NAME\"}" \
+            "$BASE/submissions")
+          if [ "$code" != "202" ]; then
+            echo "::error::publish returned $code"; cat publish.txt; exit 1
+          fi
+          poll "$BASE/submissions/operations/$(location_id publish.headers)" "Publish"
+
+          echo "Submitted to Edge Add-ons. Certification can take up to 7 business days."
