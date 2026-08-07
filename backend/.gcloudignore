@@ -1,0 +1,12 @@
+# Keep the Cloud Build upload to the sources the image actually needs.
+# Without this, `gcloud builds submit` ships the local .venv (hundreds of MB)
+# and the build gets slower and more expensive for no reason.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+dist/
+tests/
+uv.lock
+.gcloudignore
