@@ -83,14 +83,14 @@ function init() {
         keys: {},
         models: {},
         count: 0,
-        paywallMode: 'dim',
+        paywallMode: 'hide',
         mode: 'hosted',
         shareHeadlines: false,
       },
       (cfg) => {
         $('enabled').checked = cfg.enabled !== false;
         $('count').textContent = cfg.count || 0;
-        $('paywallMode').value = cfg.paywallMode || 'dim';
+        $('paywallMode').value = cfg.paywallMode || 'hide';
         $('mode').value = cfg.mode === 'key' ? 'key' : 'hosted';
         $('shareHeadlines').checked = cfg.shareHeadlines === true;
         showMode($('mode').value);

@@ -19,7 +19,10 @@ const { articleKey, contentHash } = globalThis.KlikintappajaIds;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 const CACHE_VERSION = 2; // 1 = URL-keyed, no content hash
 const MAX_OUT_CHARS = 300;
-const MAX_TOKENS = 200;
+// Generous enough that gemini-3.x's default-level thinking doesn't crowd out
+// the headline itself — see the MAX_TOKENS finishReason check in the gemini
+// provider below, which catches it if this still isn't enough.
+const MAX_TOKENS = 1200;
 
 function retryable(status) {
   return status === 429 || status >= 500;
@@ -34,7 +37,7 @@ async function readJson(res) {
 const PROVIDERS = {
   gemini: {
     label: 'Google Gemini',
-    defaultModel: 'gemini-2.5-flash-lite', // matches uutis settings.py:CHAT_MODEL
+    defaultModel: 'gemini-3.5-flash', // 2.5-flash-lite started 404ing for new API keys
     keyHint: 'AIza…  (aistudio.google.com/apikey)',
     async call({ apiKey, model, system, prompt }) {
       const url =
@@ -45,13 +48,33 @@ const PROVIDERS = {
         body: JSON.stringify({
           system_instruction: { parts: [{ text: system }] },
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          // No thinkingConfig override: forcing thinkingLevel 'minimal' made
+          // gemini-3.5-flash cut the headline itself short (e.g. "Eduskunnan
+          // puhemies J") even with finishReason STOP, not just MAX_TOKENS —
+          // composing a new headline from the article apparently needs more
+          // reasoning room than 'minimal' leaves it. maxOutputTokens is generous
+          // instead, so the model's own (default-level) thinking doesn't have to
+          // compete with the answer for budget.
           generationConfig: { temperature: 0, maxOutputTokens: MAX_TOKENS },
         }),
       });
       if (!res.ok) throwHttp(res.status, 'gemini');
       const data = await readJson(res);
-      const parts = data?.candidates?.[0]?.content?.parts;
-      return parts?.map((p) => p.text || '').join('') || '';
+      const candidate = data?.candidates?.[0];
+      // A MAX_TOKENS finish means the budget ran out — possibly mid-word — before
+      // the model finished; the thinking-token share varies per request even at
+      // thinkingLevel 'minimal', so this is reached occasionally despite that
+      // setting. Treat it as retryable rather than returning a truncated headline.
+      if (candidate?.finishReason === 'MAX_TOKENS') {
+        const err = new Error('gemini MAX_TOKENS');
+        err.retryable = true;
+        throw err;
+      }
+      // Thinking models can return thought-summary parts alongside the real
+      // answer (flagged `thought: true` on the part); joining those in would
+      // splice reasoning fragments into the headline text.
+      const parts = (candidate?.content?.parts || []).filter((p) => !p.thought);
+      return parts.map((p) => p.text || '').join('') || '';
     },
   },
 

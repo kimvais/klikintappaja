@@ -4,6 +4,43 @@ Kaikki huomionarvoiset muutokset kirjataan tähän tiedostoon. Versionumerot ova
 samat kuin `extension/manifest.json`-tiedostossa, ja jokainen julkaisu vastaa
 `v<versio>`-tagia.
 
+## 0.3.0 — julkaisematta
+
+### Muutettu
+
+- Klikkiotsikkoa ei enää korvata: se jää näkyviin sellaisenaan, ja sen alle
+  ilmestyy pienemmällä asiallinen spoileririvi. Aiemmin otsikko kirjoitettiin
+  kokonaan uusiksi tekoälyn version päälle.
+- Maksumuurin takaisten juttujen oletuskäsittely vaihdettu "Häivytä" →
+  "Piilota kokonaan": IS Extra- ja Iltalehti Plus -jutut piilotetaan nyt
+  oletuksena kokonaan sen sijaan että ne vain harmaannutettaisiin.
+
+### Lisätty
+
+- Mainokset ja kaupalliset yhteistyöt piilotetaan etusivulta kokonaan:
+  IS:n tuoteartikkelit (`.vignette-advertorial`) ja IL:n "Kaupallinen
+  yhteistyö" -jutut (`.front-sponsored-heading`) tunnistetaan sivukohtaisilla
+  merkeillä eivätkä koskaan päädy otsikonkäsittelyyn ylipäätään.
+
+### Korjattu
+
+- Spoileririvin fonttikoko oli suhteellinen (`.7em`) otsikon omaan kokoon, joten
+  se näytti isolta ison pääotsikon alla. Vaihdettu kiinteään `.85rem`:iin, joka
+  pysyy samana otsikon koosta riippumatta.
+- Gemini-tilan oletusmalli vaihdettu `gemini-2.5-flash-lite` → `gemini-3.5-flash`,
+  koska vanha malli palautti uusilla API-avaimilla pelkkää 404-virhettä eikä
+  otsikoita siis syntynyt lainkaan.
+- Gemini-kutsun tokenbudjetti nostettu 200:sta 1200:aan, koska uudempi malli
+  kuluttaa osan samasta budjetista sisäiseen ajatteluun ennen vastausta —
+  ilman reilua budjettia otsikko saattoi katketa kesken sanan ("Kansaned",
+  "keskiviikk"). (Kokeiltiin myös pakottaa `thinkingLevel: 'minimal'`, mutta se
+  tuotti puutteellisia otsikoita siitäkin huolimatta, joten ajattelutaso jätetty
+  mallin oletukseen.) Gemini-vastaus, joka katkeaa `finishReason:
+  MAX_TOKENS`:iin, hylätään ja yritetään uudelleen sen sijaan että typistetty
+  otsikko päätyisi sivulle.
+- Gemini-vastauksen `parts`-taulukosta suodatetaan pois `thought: true`
+  -merkityt ajatteluosat ennen kuin ne liitetään otsikkotekstiksi.
+
 ## 0.2.0 — 2026-08-07
 
 Iso muutos: laajennuksen voi nyt ottaa käyttöön **ilman omaa API-avainta**.

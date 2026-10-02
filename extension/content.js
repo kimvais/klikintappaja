@@ -2,8 +2,9 @@
 // Runs on is.fi / iltasanomat.fi / iltalehti.fi. Finds headline elements,
 // lazily (as they scroll into view) fetches the linked article SAME-ORIGIN,
 // extracts its body, asks the background worker to rewrite the headline, and
-// swaps the text in place — preserving all site markup/styling. The clickbait
-// original is kept in a tooltip.
+// appends a factual spoiler line underneath — the clickbait itself is left
+// untouched. Also strips native-ad / sponsored-content teaser cards from the
+// front page.
 
 (function () {
   'use strict';
@@ -15,6 +16,13 @@
   const CARD_LOOKUP_HOPS = 4; // ancestors to search for an article link
   const TEASER_LOOKUP_HOPS = 4; // ancestors to consider as "this one teaser"
   const PAYWALL_MODES = ['off', 'dim', 'hide'];
+  // Native-ad / sponsored-content teaser markers, found by inspecting the live
+  // front pages (2026-10-01): IS labels an advertorial span
+  // `teaser-vignette__title-advertorial` inside `.vignette-advertorial`; IL
+  // labels a sponsored teaser's heading `.front-sponsored-heading` ("Kaupallinen
+  // yhteistyö: <brand>"). Neither points at an `/art-<id>.html` or `/a/<uuid>`
+  // URL, so they never enter the headline pipeline at all — this only hides them.
+  const AD_SELECTOR = '.vignette-advertorial, .front-sponsored-heading';
 
   // Article-URL patterns per host (used to tell headline links from nav/ads).
   const ARTICLE_PATTERNS = [
@@ -24,7 +32,7 @@
 
   let enabled = true;
   let mode = 'key'; // key (own API key) | hosted (shared store, Google sign-in)
-  let paywallMode = 'dim'; // off | dim (gray + 🫰) | hide
+  let paywallMode = 'hide'; // off | dim (gray + 🫰) | hide
   let inFlight = 0;
   const queue = [];
   const treated = new Set(); // {el, unit, tier} we applied a paywall treatment to
@@ -48,6 +56,11 @@
     '.klt-paywalled{opacity:.4;filter:grayscale(1);transition:opacity .2s ease;}' +
     '.klt-paywalled:hover{opacity:.75;}' +
     '.klt-paywalled-hidden{display:none!important;}' +
+    '.klt-ad-hidden{display:none!important;}' +
+    // Fixed rem size on purpose, not an em multiplier: headline font-size varies
+    // wildly by placement (hero vs. sidebar vs. list item), so a relative size
+    // still looked huge under a big hero headline.
+    '.klt-spoiler{display:block;font-size:.85rem;line-height:1.3;font-weight:400;opacity:.75;margin-top:.3em;}' +
     '@keyframes klt-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}' +
     '@media (prefers-reduced-motion:reduce){.klt-marker.klt-working{animation:none;}}';
   (document.head || document.documentElement).appendChild(style);
@@ -92,17 +105,6 @@
     } catch {
       return null;
     }
-  }
-
-  // Non-empty text nodes under `el`, in document order.
-  function textNodes(el) {
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    const out = [];
-    let n;
-    while ((n = walker.nextNode())) {
-      if (n.nodeValue && n.nodeValue.trim()) out.push(n);
-    }
-    return out;
   }
 
   // The article URL associated with a headline element: a link inside it, an
@@ -157,6 +159,17 @@
       best = node;
     }
     return best;
+  }
+
+  // Ad/sponsored markers don't sit on an article link (they point at a sponsor
+  // page, not /art-<id>.html or /a/<uuid>), so teaserUnit()'s article-counting
+  // walk doesn't apply here: just climb to the nearest card-shaped ancestor.
+  function hideAds(root) {
+    if (!root.querySelectorAll) return;
+    for (const marker of root.querySelectorAll(AD_SELECTOR)) {
+      const unit = marker.closest('article,li,.card') || marker;
+      unit.classList.add('klt-ad-hidden');
+    }
   }
 
   const TIER_LABEL = { 'is-extra': 'IS Extra', 'il-plus': 'Iltalehti Plus' };
@@ -274,6 +287,7 @@
 
   function observeAll() {
     if (!enabled) return;
+    hideAds(document);
     for (const el of collectUnits(document)) io.observe(el);
   }
 
@@ -402,28 +416,22 @@
     }
   }
 
-  // Replace the headline text WITHOUT disturbing markup/styling: rewrite the
-  // element's text nodes in place (first node gets the new text, the rest are
-  // blanked), keeping every wrapping <span>/class the site relies on. If the
+  // Leave the clickbait headline exactly as the site rendered it, and append a
+  // smaller "spoiler" line underneath with the factual rewrite. If the
   // element's text is only partly the headline (e.g. a card that also holds a
   // kicker or timestamp), descend to the deepest element that is exactly the
-  // headline and rewrite there instead.
+  // headline and append there instead.
   function applyHeadline(el, original, rewritten) {
     // Gate on the element's own textContent — the source of truth — rather than
     // reconstructing it from text nodes. Headlines are split across spans and
     // whitespace-only text nodes in different ways per site (React renders
-    // {kicker}{' '}{title}), and any manual join gets the spacing wrong.
+    // {kicker}{' '}{title}).
     if (collapse(el.textContent) === original) {
-      const nodes = textNodes(el);
-      if (!nodes.length) return false;
-      // Put the new text in the longest node (the main headline span, so its
-      // styling carries through) and blank the other text-bearing nodes.
-      let main = nodes[0];
-      for (const n of nodes) {
-        if (n.nodeValue.trim().length > main.nodeValue.trim().length) main = n;
-      }
-      for (const n of nodes) n.nodeValue = n === main ? rewritten : '';
-      decorate(el, original);
+      const spoiler = document.createElement('div');
+      spoiler.className = 'klt-spoiler';
+      spoiler.textContent = rewritten;
+      el.appendChild(spoiler);
+      el.setAttribute('data-klikintappaja-original', original);
       return true;
     }
     // el now holds more/other text (a card with extra meta, or the SPA
@@ -437,11 +445,6 @@
     if (deepest && deepest !== el) return applyHeadline(deepest, original, rewritten);
     console.debug('[klikintappaja] could not localize headline:', original, '| now:', collapse(el.textContent));
     return false;
-  }
-
-  function decorate(el, original) {
-    el.setAttribute('data-klikintappaja-original', original);
-    if (!el.title) el.title = 'Alkuperäinen: ' + original;
   }
 
   // --- toggle + dynamic content --------------------------------------------
@@ -460,7 +463,7 @@
     mo.observe(document.body, { childList: true, subtree: true });
   }
 
-  chrome.storage.local.get({ enabled: true, paywallMode: 'dim', mode: 'key' }, (cfg) => {
+  chrome.storage.local.get({ enabled: true, paywallMode: 'hide', mode: 'key' }, (cfg) => {
     enabled = cfg.enabled !== false;
     if (PAYWALL_MODES.includes(cfg.paywallMode)) paywallMode = cfg.paywallMode;
     if (cfg.mode === 'hosted' || cfg.mode === 'key') mode = cfg.mode;
