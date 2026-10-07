@@ -16,6 +16,7 @@
   const CARD_LOOKUP_HOPS = 4; // ancestors to search for an article link
   const TEASER_LOOKUP_HOPS = 4; // ancestors to consider as "this one teaser"
   const PAYWALL_MODES = ['off', 'dim', 'hide'];
+  const DISPLAY_MODES = ['append', 'replace'];
   // Native-ad / sponsored-content teaser markers, found by inspecting the live
   // front pages (2026-10-01): IS labels an advertorial span
   // `teaser-vignette__title-advertorial` inside `.vignette-advertorial`; IL
@@ -33,6 +34,7 @@
   let enabled = true;
   let mode = 'key'; // key (own API key) | hosted (shared store, Google sign-in)
   let paywallMode = 'hide'; // off | dim (gray + 🫰) | hide
+  let displayMode = 'append'; // append (bait + small spoiler below) | replace (spoiler only)
   let inFlight = 0;
   const queue = [];
   const treated = new Set(); // {el, unit, tier} we applied a paywall treatment to
@@ -61,6 +63,11 @@
     // wildly by placement (hero vs. sidebar vs. list item), so a relative size
     // still looked huge under a big hero headline.
     '.klt-spoiler{display:block;font-size:.85rem;line-height:1.3;font-weight:400;opacity:.75;margin-top:.3em;}' +
+    // displayMode 'replace': the bait stays in the DOM (textContent, selectors,
+    // dedupe all still see it) but is hidden behind CSS, and the spoiler is
+    // promoted to look like the headline it is standing in for.
+    'html.klt-mode-replace .klt-original{display:none;}' +
+    'html.klt-mode-replace .klt-spoiler{display:inline;font-size:inherit;font-weight:inherit;line-height:inherit;opacity:1;margin-top:0;}' +
     '@keyframes klt-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}' +
     '@media (prefers-reduced-motion:reduce){.klt-marker.klt-working{animation:none;}}';
   (document.head || document.documentElement).appendChild(style);
@@ -427,6 +434,19 @@
     // whitespace-only text nodes in different ways per site (React renders
     // {kicker}{' '}{title}).
     if (collapse(el.textContent) === original) {
+      // Wrap the existing content in a span rather than editing it: textContent
+      // stays byte-identical (detection/dedupe logic above is unaffected), and
+      // displayMode 'replace' can hide just this wrapper via CSS instead of
+      // us having to tear the bait out of the DOM. The progress marker (💀/✨)
+      // is excluded so it stays visible regardless of displayMode.
+      const marker = el._kltMarker && el._kltMarker.parentNode === el ? el._kltMarker : null;
+      const wrap = document.createElement('span');
+      wrap.className = 'klt-original';
+      for (const node of Array.from(el.childNodes)) {
+        if (node !== marker) wrap.appendChild(node);
+      }
+      if (marker) el.insertBefore(wrap, marker);
+      else el.appendChild(wrap);
       const spoiler = document.createElement('div');
       spoiler.className = 'klt-spoiler';
       spoiler.textContent = rewritten;
@@ -463,12 +483,21 @@
     mo.observe(document.body, { childList: true, subtree: true });
   }
 
-  chrome.storage.local.get({ enabled: true, paywallMode: 'hide', mode: 'key' }, (cfg) => {
-    enabled = cfg.enabled !== false;
-    if (PAYWALL_MODES.includes(cfg.paywallMode)) paywallMode = cfg.paywallMode;
-    if (cfg.mode === 'hosted' || cfg.mode === 'key') mode = cfg.mode;
-    if (enabled) start();
-  });
+  function applyDisplayMode() {
+    document.documentElement.classList.toggle('klt-mode-replace', displayMode === 'replace');
+  }
+
+  chrome.storage.local.get(
+    { enabled: true, paywallMode: 'hide', mode: 'key', displayMode: 'append' },
+    (cfg) => {
+      enabled = cfg.enabled !== false;
+      if (PAYWALL_MODES.includes(cfg.paywallMode)) paywallMode = cfg.paywallMode;
+      if (cfg.mode === 'hosted' || cfg.mode === 'key') mode = cfg.mode;
+      if (DISPLAY_MODES.includes(cfg.displayMode)) displayMode = cfg.displayMode;
+      applyDisplayMode();
+      if (enabled) start();
+    }
+  );
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
@@ -485,6 +514,13 @@
       if (PAYWALL_MODES.includes(next) && next !== paywallMode) {
         paywallMode = next;
         refreshPaywallTreatments();
+      }
+    }
+    if (changes.displayMode) {
+      const next = changes.displayMode.newValue;
+      if (DISPLAY_MODES.includes(next) && next !== displayMode) {
+        displayMode = next;
+        applyDisplayMode(); // pure CSS toggle — already-rewritten headlines flip instantly
       }
     }
   });

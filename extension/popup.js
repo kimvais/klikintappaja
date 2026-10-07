@@ -84,6 +84,7 @@ function init() {
         models: {},
         count: 0,
         paywallMode: 'hide',
+        displayMode: 'append',
         mode: 'hosted',
         shareHeadlines: false,
       },
@@ -91,6 +92,7 @@ function init() {
         $('enabled').checked = cfg.enabled !== false;
         $('count').textContent = cfg.count || 0;
         $('paywallMode').value = cfg.paywallMode || 'hide';
+        $('displayMode').value = cfg.displayMode === 'replace' ? 'replace' : 'append';
         $('mode').value = cfg.mode === 'key' ? 'key' : 'hosted';
         $('shareHeadlines').checked = cfg.shareHeadlines === true;
         showMode($('mode').value);
@@ -116,6 +118,10 @@ $('enabled').addEventListener('change', () => {
 // change, so there is no need to reload the page.
 $('paywallMode').addEventListener('change', () => {
   chrome.storage.local.set({ paywallMode: $('paywallMode').value });
+});
+
+$('displayMode').addEventListener('change', () => {
+  chrome.storage.local.set({ displayMode: $('displayMode').value });
 });
 
 $('mode').addEventListener('change', () => {
@@ -165,6 +171,7 @@ $('save').addEventListener('click', () => {
       models,
       enabled: $('enabled').checked,
       paywallMode: $('paywallMode').value,
+      displayMode: $('displayMode').value,
       mode: $('mode').value,
       shareHeadlines: $('shareHeadlines').checked,
     },

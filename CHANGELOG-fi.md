@@ -21,6 +21,9 @@ samat kuin `extension/manifest.json`-tiedostossa, ja jokainen julkaisu vastaa
   IS:n tuoteartikkelit (`.vignette-advertorial`) ja IL:n "Kaupallinen
   yhteistyö" -jutut (`.front-sponsored-heading`) tunnistetaan sivukohtaisilla
   merkeillä eivätkä koskaan päädy otsikonkäsittelyyn ylipäätään.
+- Uusi asetus "Spoilerin näyttötapa": voi valita näytetäänkö klikkiotsikko
+  edelleen pienen spoileririvin yläpuolella (oletus) vai piilotetaanko
+  klikkiotsikko kokonaan niin että näkyvissä on vain asiallinen spoileri.
 
 ### Korjattu
 
