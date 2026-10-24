@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Klikintappaja",
   "version": "0.3.0",
-  "description": "Lisää Iltalehden ja Ilta-Sanomien klikkiotsikoiden alle asiallisen, tekoälyn tuottaman spoilerin.",
+  "description": "Korvaa Iltalehden ja Ilta-Sanomien klikkiotsikot asiallisilla, tekoälyn tuottamilla otsikoilla.",
   "permissions": ["storage", "identity"],
   "host_permissions": [
     "*://*.is.fi/*",

@@ -112,11 +112,16 @@
       </div>
     </div>
 
-    <label for="displayMode">Spoilerin näyttötapa</label>
+    <label for="displayMode">Otsikon näyttötapa</label>
     <select id="displayMode">
-      <option value="append">Klikkiotsikko + pieni spoileri alla</option>
-      <option value="replace">Pelkkä spoileri (klikkiotsikko piiloon)</option>
+      <option value="rewrite">Korvaa klikkiotsikko</option>
+      <option value="spoiler">Klikkiotsikko + pieni spoileri alla</option>
+      <option value="spoiler-only">Pelkkä spoileri (klikkiotsikko piiloon)</option>
     </select>
+    <div class="muted">
+      Jo korvatut otsikot vaihtuvat uuteen tapaan vasta, kun sivu ladataan
+      uudelleen.
+    </div>
 
     <label for="paywallMode">Maksumuurin takana</label>
     <select id="paywallMode">
@@ -136,6 +141,14 @@
     <div class="muted">
       Harmaannuttaa myös ne jutut, joiden otsikkoa ei voitu korvata — esimerkiksi
       liian lyhyet jutut ja videopalat. Näet mitä laajennus ei saanut tehtyä.
+    </div>
+
+    <div class="row">
+      <span>Piilota mainokset</span>
+      <input type="checkbox" id="hideAds" />
+    </div>
+    <div class="muted">
+      Piilottaa etusivulta tuoteartikkelit ja kaupalliset yhteistyöt.
     </div>
 
     <div class="row">

@@ -5,10 +5,9 @@ _Päivitetty: 2026-08-07_
 > Tämä on käännös. Ristiriitatilanteessa englanninkielinen
 > [PRIVACY.md](PRIVACY.md) on virallinen versio.
 
-Klikintappaja on selainlaajennus, joka lisää suomalaisten uutissivustojen
-klikkiotsikoiden alle asiallisen spoileririvin. Se ei kerää **analytiikkaa
-eikä telemetriaa**, eikä mitään tietoja myydä tai luovuteta
-mainostarkoituksiin.
+Klikintappaja on selainlaajennus, joka korvaa suomalaisten uutissivustojen
+klikkiotsikot asiallisilla. Se ei kerää **analytiikkaa eikä telemetriaa**, eikä
+mitään tietoja myydä tai luovuteta mainostarkoituksiin.
 
 Se, mitä tietoja selaimestasi lähtee, riippuu täysin siitä, kumman tilan valitset
 ponnahdusikkunan kohdasta **Otsikoiden lähde**:

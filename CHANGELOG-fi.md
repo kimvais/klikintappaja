@@ -4,32 +4,27 @@ Kaikki huomionarvoiset muutokset kirjataan tähän tiedostoon. Versionumerot ova
 samat kuin `extension/manifest.json`-tiedostossa, ja jokainen julkaisu vastaa
 `v<versio>`-tagia.
 
-## 0.3.0 — julkaisematta
+## 0.3.0 — 2026-10-25
 
 ### Muutettu
 
-- Klikkiotsikkoa ei enää korvata: se jää näkyviin sellaisenaan, ja sen alle
-  ilmestyy pienemmällä asiallinen spoileririvi. Aiemmin otsikko kirjoitettiin
-  kokonaan uusiksi tekoälyn version päälle.
 - Maksumuurin takaisten juttujen oletuskäsittely vaihdettu "Häivytä" →
   "Piilota kokonaan": IS Extra- ja Iltalehti Plus -jutut piilotetaan nyt
-  oletuksena kokonaan sen sijaan että ne vain harmaannutettaisiin.
+  oletuksena kokonaan. Harmaannuksen saa takaisin asetuksista.
 
 ### Lisätty
 
-- Mainokset ja kaupalliset yhteistyöt piilotetaan etusivulta kokonaan:
-  IS:n tuoteartikkelit (`.vignette-advertorial`) ja IL:n "Kaupallinen
-  yhteistyö" -jutut (`.front-sponsored-heading`) tunnistetaan sivukohtaisilla
-  merkeillä eivätkä koskaan päädy otsikonkäsittelyyn ylipäätään.
-- Uusi asetus "Spoilerin näyttötapa": voi valita näytetäänkö klikkiotsikko
-  edelleen pienen spoileririvin yläpuolella (oletus) vai piilotetaanko
-  klikkiotsikko kokonaan niin että näkyvissä on vain asiallinen spoileri.
+- Uusi asetus "Otsikon näyttötapa": klikkiotsikon voi edelleen korvata
+  (oletus), tai sen voi jättää näkyviin ja näyttää asiallisen spoilerin
+  pienemmällä sen alla, tai näyttää pelkän spoilerin.
+- Uusi asetus "Piilota mainokset" (oletuksena pois): piilottaa etusivulta
+  IS:n tuoteartikkelit ja IL:n "Kaupallinen yhteistyö" -jutut.
+- Uusi asetus "Häivytä myös ohitetut" (oletuksena pois): harmaannuttaa myös
+  jutut, joiden otsikkoa ei voitu korvata, jotta näet mitä laajennus ei saanut
+  tehtyä.
 
 ### Korjattu
 
-- Spoileririvin fonttikoko oli suhteellinen (`.7em`) otsikon omaan kokoon, joten
-  se näytti isolta ison pääotsikon alla. Vaihdettu kiinteään `.85rem`:iin, joka
-  pysyy samana otsikon koosta riippumatta.
 - Gemini-tilan oletusmalli vaihdettu `gemini-2.5-flash-lite` → `gemini-3.5-flash`,
   koska vanha malli palautti uusilla API-avaimilla pelkkää 404-virhettä eikä
   otsikoita siis syntynyt lainkaan.

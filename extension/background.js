@@ -62,9 +62,9 @@ const PROVIDERS = {
       const data = await readJson(res);
       const candidate = data?.candidates?.[0];
       // A MAX_TOKENS finish means the budget ran out — possibly mid-word — before
-      // the model finished; the thinking-token share varies per request even at
-      // thinkingLevel 'minimal', so this is reached occasionally despite that
-      // setting. Treat it as retryable rather than returning a truncated headline.
+      // the model finished; the thinking-token share varies per request, so this
+      // is reached occasionally even with the generous budget. Treat it as
+      // retryable rather than returning a truncated headline.
       if (candidate?.finishReason === 'MAX_TOKENS') {
         const err = new Error('gemini MAX_TOKENS');
         err.retryable = true;

@@ -5,9 +5,9 @@ _Last updated: 2026-08-07_
 > Suomeksi: [PRIVACY-fi.md](PRIVACY-fi.md). This English version is the
 > authoritative one if the two ever disagree.
 
-Klikintappaja is a browser extension that adds a factual spoiler line under
-clickbait headlines on Finnish news sites. It collects **no analytics and no
-telemetry**, and nothing is sold or shared for advertising.
+Klikintappaja is a browser extension that replaces clickbait headlines on Finnish
+news sites with factual ones. It collects **no analytics and no telemetry**, and
+nothing is sold or shared for advertising.
 
 How much data leaves your browser depends entirely on which of the two modes you
 choose in the popup under **Otsikoiden lähde**:

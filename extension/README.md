@@ -1,9 +1,9 @@
 # Klikintappaja — a de-clickbait Chrome extension for IS & IL
 
-Adds a factual, LLM-generated spoiler line under clickbait headlines
-(*klikkiotsikot*) on **iltalehti.fi** and **iltasanomat.fi / is.fi** — as you
-scroll, the clickbait itself untouched. The name is a wink at *klikinsäästäjä*
-(the click *saver*) — this one is the click *killer*.
+Replaces clickbait headlines (*klikkiotsikot*) on **iltalehti.fi** and
+**iltasanomat.fi / is.fi** with factual, LLM-generated ones — in place, as you
+scroll. The name is a wink at *klikinsäästäjä* (the click *saver*) — this one is
+the click *killer*.
 
 It reuses the anti-clickbait prompt and the per-site article extractors from the
 [`uutis`](../README.md) project (see `src/uutis/prompts.py` and
@@ -18,8 +18,10 @@ backend, no data leaves the browser except the article text sent to the LLM.
    headline from the **actual article content** (never from the clickbait title
    alone).
 3. While a headline is being killed, a spinning 💀 badge trails it; once the
-   factual spoiler is appended underneath, the badge turns into a subtle ✨.
-   The clickbait headline itself is left exactly as published.
+   factual headline is swapped in, the badge turns into a subtle ✨. Hover the
+   headline to see the original clickbait title. Under **Otsikon näyttötapa** the
+   popup can instead keep the clickbait and add a smaller spoiler line under it,
+   or show the spoiler alone.
 4. Results are cached for 24h keyed by the **article ID** in the URL
    (`art-2000012186173` → `is:2000012186173`, `/a/<uuid>` → `a:<uuid>`; anything
    else falls back to a UUIDv5 of the normalized URL). Tracking params, `www.`
@@ -34,13 +36,14 @@ backend, no data leaves the browser except the article text sent to the LLM.
    from the fetched article, not from the front-page badge. Because the fetch
    sends your cookies, a logged-in subscriber gets the full text and a normal
    headline; for everyone else only the lede comes back and the teaser gets the
-   treatment chosen under **Maksumuurin takana** in the popup: *Häivytä*
-   (grayed out, 💀 → 🫰) or *Piilota kokonaan* (removed), or *Ei mitään* to
-   leave them alone. Locked articles are never sent to the AI provider.
+   treatment chosen under **Maksumuurin takana** in the popup: *Piilota
+   kokonaan* (removed, the default), *Häivytä* (grayed out, 💀 → 🫰), or *Ei
+   mitään* to leave them alone. Locked articles are never sent to the AI provider.
 7. **Native-ad and sponsored ("kaupallinen yhteistyö") teaser cards** are hidden
-   outright, unconditionally — they're detected by site-specific CSS markers
-   (`.vignette-advertorial` on IS, `.front-sponsored-heading` on IL), never
-   point at a real article URL, and so never reach the headline pipeline at all.
+   with **Piilota mainokset** in the popup (off by default). They're detected by
+   site-specific CSS markers (`.vignette-advertorial` on IS,
+   `.front-sponsored-heading` on IL), never point at a real article URL, and so
+   never reach the headline pipeline at all.
 
 ## Install (load unpacked)
 
@@ -73,8 +76,8 @@ extension on/off or clear the cache from the popup.
   article-URL pattern (`/art-<id>.html` for IS, `/a/<id>` for IL) plus their link
   text length. If the sites restructure their front pages, adjust
   `ARTICLE_PATTERNS` in `content.js`.
-- The original headline is always left untouched; on any failure (no key, fetch
-  error, thin article body, LLM error) no spoiler is added either.
+- On any failure (no key, fetch error, thin article body, LLM error) the original
+  headline is left untouched.
 - Providers live in a small registry (`PROVIDERS`) in `background.js`. Adding a
   future **hosted / shared-API** provider — so users don't each need a key — is
   one more entry there; no other code changes.
@@ -86,7 +89,7 @@ extension on/off or clear the cache from the popup.
 | File | Role |
 | --- | --- |
 | `manifest.json` | MV3 manifest (matches, permissions, worker, popup) |
-| `content.js` | headline detection, lazy fetch+extract, spoiler append |
+| `content.js` | headline detection, lazy fetch+extract, text swap or spoiler |
 | `extractors.js` | per-site body extraction (ported from `fi.py`) + paywall detection |
 | `articleid.js` | article ID from the URL (`is:`/`a:`, UUIDv5 fallback) — the cache key |
 | `prompts.js` | anti-clickbait prompt (ported from `prompts.py`) |

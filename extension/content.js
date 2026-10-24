@@ -2,9 +2,9 @@
 // Runs on is.fi / iltasanomat.fi / iltalehti.fi. Finds headline elements,
 // lazily (as they scroll into view) fetches the linked article SAME-ORIGIN,
 // extracts its body, asks the background worker to rewrite the headline, and
-// appends a factual spoiler line underneath — the clickbait itself is left
-// untouched. Also strips native-ad / sponsored-content teaser cards from the
-// front page.
+// swaps the text in place — preserving all site markup/styling. The clickbait
+// original is kept in a tooltip. Opt-in alternatives: a spoiler line under the
+// untouched clickbait, and hiding native-ad / sponsored teaser cards.
 
 (function () {
   'use strict';
@@ -16,13 +16,14 @@
   const CARD_LOOKUP_HOPS = 4; // ancestors to search for an article link
   const TEASER_LOOKUP_HOPS = 4; // ancestors to consider as "this one teaser"
   const PAYWALL_MODES = ['off', 'dim', 'hide'];
-  const DISPLAY_MODES = ['append', 'replace'];
+  const DISPLAY_MODES = ['rewrite', 'spoiler', 'spoiler-only'];
   // Native-ad / sponsored-content teaser markers, found by inspecting the live
   // front pages (2026-10-01): IS labels an advertorial span
   // `teaser-vignette__title-advertorial` inside `.vignette-advertorial`; IL
   // labels a sponsored teaser's heading `.front-sponsored-heading` ("Kaupallinen
   // yhteistyö: <brand>"). Neither points at an `/art-<id>.html` or `/a/<uuid>`
-  // URL, so they never enter the headline pipeline at all — this only hides them.
+  // URL, so they never enter the headline pipeline at all — this only hides them,
+  // and only with `hideAds` on.
   const AD_SELECTOR = '.vignette-advertorial, .front-sponsored-heading';
 
   // Article-URL patterns per host (used to tell headline links from nav/ads).
@@ -34,7 +35,10 @@
   let enabled = true;
   let mode = 'key'; // key (own API key) | hosted (shared store, Google sign-in)
   let paywallMode = 'hide'; // off | dim (gray + 🫰) | hide
-  let displayMode = 'append'; // append (bait + small spoiler below) | replace (spoiler only)
+  // rewrite (text swapped in place) | spoiler (bait + small spoiler below) |
+  // spoiler-only (bait hidden behind CSS, spoiler styled as the headline)
+  let displayMode = 'rewrite';
+  let hideAds = false;
   // Gray out headlines that were picked up but could not be rewritten — too
   // little article text, a fetch failure, nothing in the shared store. Off by
   // default because it makes the page noisier.
@@ -74,11 +78,11 @@
     // wildly by placement (hero vs. sidebar vs. list item), so a relative size
     // still looked huge under a big hero headline.
     '.klt-spoiler{display:block;font-size:.85rem;line-height:1.3;font-weight:400;opacity:.75;margin-top:.3em;}' +
-    // displayMode 'replace': the bait stays in the DOM (textContent, selectors,
-    // dedupe all still see it) but is hidden behind CSS, and the spoiler is
-    // promoted to look like the headline it is standing in for.
-    'html.klt-mode-replace .klt-original{display:none;}' +
-    'html.klt-mode-replace .klt-spoiler{display:inline;font-size:inherit;font-weight:inherit;line-height:inherit;opacity:1;margin-top:0;}' +
+    // displayMode 'spoiler-only': the bait stays in the DOM but is hidden behind
+    // CSS, and the spoiler is promoted to look like the headline it is standing
+    // in for.
+    'html.klt-mode-spoiler-only .klt-original{display:none;}' +
+    'html.klt-mode-spoiler-only .klt-spoiler{display:inline;font-size:inherit;font-weight:inherit;line-height:inherit;opacity:1;margin-top:0;}' +
     '@keyframes klt-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}' +
     '@media (prefers-reduced-motion:reduce){.klt-marker.klt-working{animation:none;}}';
   (document.head || document.documentElement).appendChild(style);
@@ -123,6 +127,17 @@
     } catch {
       return null;
     }
+  }
+
+  // Non-empty text nodes under `el`, in document order.
+  function textNodes(el) {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const out = [];
+    let n;
+    while ((n = walker.nextNode())) {
+      if (n.nodeValue && n.nodeValue.trim()) out.push(n);
+    }
+    return out;
   }
 
   // The article URL associated with a headline element: a link inside it, an
@@ -179,14 +194,33 @@
     return best;
   }
 
-  // Ad/sponsored markers don't sit on an article link (they point at a sponsor
-  // page, not /art-<id>.html or /a/<uuid>), so teaserUnit()'s article-counting
-  // walk doesn't apply here: just climb to the nearest card-shaped ancestor.
-  function hideAds(root) {
+  // The card an ad/sponsored marker belongs to. Same guard as teaserUnit(), but
+  // "at most one" article instead of "exactly one": the marker itself links to a
+  // sponsor page, not to an article, so its card may count zero. A candidate
+  // covering two or more articles is a shared container and is never taken.
+  function adUnit(marker) {
+    const card = marker.closest('article,li,.card');
+    if (card && distinctArticleCount(card) <= 1) return card;
+    let best = marker;
+    let node = marker;
+    for (let hop = 0; hop < TEASER_LOOKUP_HOPS && node.parentElement; hop++) {
+      node = node.parentElement;
+      if (distinctArticleCount(node) > 1) break;
+      best = node;
+    }
+    return best;
+  }
+
+  function markAds(root) {
     if (!root.querySelectorAll) return;
     for (const marker of root.querySelectorAll(AD_SELECTOR)) {
-      const unit = marker.closest('article,li,.card') || marker;
-      unit.classList.add('klt-ad-hidden');
+      adUnit(marker).classList.add('klt-ad-hidden');
+    }
+  }
+
+  function unmarkAds() {
+    for (const el of document.querySelectorAll('.klt-ad-hidden')) {
+      el.classList.remove('klt-ad-hidden');
     }
   }
 
@@ -331,7 +365,7 @@
 
   function observeAll() {
     if (!enabled) return;
-    hideAds(document);
+    if (hideAds) markAds(document);
     for (const el of collectUnits(document)) io.observe(el);
   }
 
@@ -458,22 +492,37 @@
     }
   }
 
-  // Leave the clickbait headline exactly as the site rendered it, and append a
-  // smaller "spoiler" line underneath with the factual rewrite. If the
-  // element's text is only partly the headline (e.g. a card that also holds a
-  // kicker or timestamp), descend to the deepest element that is exactly the
-  // headline and append there instead.
+  // Put the rewrite on the page WITHOUT disturbing markup/styling. In 'rewrite'
+  // mode the element's text nodes are rewritten in place (the longest node gets
+  // the new text, the rest are blanked), keeping every wrapping <span>/class the
+  // site relies on. In the spoiler modes the clickbait is left as rendered and a
+  // smaller spoiler line is appended under it. If the element's text is only
+  // partly the headline (e.g. a card that also holds a kicker or timestamp),
+  // descend to the deepest element that is exactly the headline instead.
   function applyHeadline(el, original, rewritten) {
     // Gate on the element's own textContent — the source of truth — rather than
     // reconstructing it from text nodes. Headlines are split across spans and
     // whitespace-only text nodes in different ways per site (React renders
-    // {kicker}{' '}{title}).
+    // {kicker}{' '}{title}), and any manual join gets the spacing wrong.
     if (collapse(el.textContent) === original) {
-      // Wrap the existing content in a span rather than editing it: textContent
-      // stays byte-identical (detection/dedupe logic above is unaffected), and
-      // displayMode 'replace' can hide just this wrapper via CSS instead of
-      // us having to tear the bait out of the DOM. The progress marker (💀/✨)
-      // is excluded so it stays visible regardless of displayMode.
+      if (displayMode === 'rewrite') {
+        const nodes = textNodes(el);
+        if (!nodes.length) return false;
+        let main = nodes[0];
+        for (const n of nodes) {
+          if (n.nodeValue.trim().length > main.nodeValue.trim().length) main = n;
+        }
+        for (const n of nodes) n.nodeValue = n === main ? rewritten : '';
+        el.setAttribute('data-klikintappaja-original', original);
+        if (!el.title) el.title = 'Alkuperäinen: ' + original;
+        return true;
+      }
+      // Wrap the existing content in a span rather than editing it, so
+      // 'spoiler-only' can hide just this wrapper via CSS instead of tearing the
+      // bait out of the DOM. The spoiler is a child of `el`, so el.textContent
+      // becomes bait + spoiler from here on — harmless only because a unit marked
+      // 'done' is never re-read. The progress marker (💀/✨) is excluded so it
+      // stays visible regardless of displayMode.
       const marker = el._kltMarker && el._kltMarker.parentNode === el ? el._kltMarker : null;
       const wrap = document.createElement('span');
       wrap.className = 'klt-original';
@@ -519,11 +568,18 @@
   }
 
   function applyDisplayMode() {
-    document.documentElement.classList.toggle('klt-mode-replace', displayMode === 'replace');
+    document.documentElement.classList.toggle('klt-mode-spoiler-only', displayMode === 'spoiler-only');
   }
 
   chrome.storage.local.get(
-    { enabled: true, paywallMode: 'hide', mode: 'key', displayMode: 'append', dimSkipped: false },
+    {
+      enabled: true,
+      paywallMode: 'hide',
+      mode: 'key',
+      displayMode: 'rewrite',
+      dimSkipped: false,
+      hideAds: false,
+    },
     (cfg) => {
       enabled = cfg.enabled !== false;
       if (PAYWALL_MODES.includes(cfg.paywallMode)) paywallMode = cfg.paywallMode;
@@ -531,6 +587,7 @@
       if (DISPLAY_MODES.includes(cfg.displayMode)) displayMode = cfg.displayMode;
       applyDisplayMode();
       dimSkipped = cfg.dimSkipped === true;
+      hideAds = cfg.hideAds === true;
       if (enabled) start();
     }
   );
@@ -560,8 +617,15 @@
       const next = changes.displayMode.newValue;
       if (DISPLAY_MODES.includes(next) && next !== displayMode) {
         displayMode = next;
-        applyDisplayMode(); // pure CSS toggle — already-rewritten headlines flip instantly
+        // Pure CSS toggle between the two spoiler modes. Headlines already
+        // rewritten in place keep their shape until the page is reloaded.
+        applyDisplayMode();
       }
+    }
+    if (changes.hideAds) {
+      hideAds = changes.hideAds.newValue === true;
+      if (hideAds) markAds(document);
+      else unmarkAds();
     }
   });
 })();
