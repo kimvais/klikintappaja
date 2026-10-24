@@ -4,6 +4,18 @@ Kaikki huomionarvoiset muutokset kirjataan tähän tiedostoon. Versionumerot ova
 samat kuin `extension/manifest.json`-tiedostossa, ja jokainen julkaisu vastaa
 `v<versio>`-tagia.
 
+## 0.3.2 — 2026-10-25
+
+### Korjattu
+
+- Otsikon alla oleva pienempi rivi skaalautuu nyt otsikon koon mukaan ja on
+  luettavan kokoinen myös sivupalkin "Luetuimmat"-listoissa. Se näytetään
+  sivuston leipätekstin fontilla eikä enää lihavoituna.
+- Iltalehdessä pienempi rivi oli "Luetuimmat"-listassa otsikon vieressä eikä
+  sen alla, ja 💀/✨-merkki putosi omalle rivilleen otsikon perästä.
+- Iltalehdessä pienellä näytetty klikkiotsikko sisälsi myös jutun osaston ja
+  kellonajan.
+
 ## 0.3.1 — 2026-10-25
 
 ### Muutettu

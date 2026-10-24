@@ -74,10 +74,13 @@
     '.klt-paywalled:hover{opacity:.75;}' +
     '.klt-paywalled-hidden{display:none!important;}' +
     '.klt-ad-hidden{display:none!important;}' +
-    // Fixed rem size on purpose, not an em multiplier: headline font-size varies
-    // wildly by placement (hero vs. sidebar vs. list item), so a relative size
-    // still looked huge under a big hero headline.
-    '.klt-sub{display:block;font-size:.85rem;line-height:1.3;font-weight:400;opacity:.75;margin-top:.3em;}' +
+    // Proportional to the headline: a fixed .85rem came out tiny on the sites
+    // (small root font size). .6em rather than Tatu's original .7em, which
+    // looked too big under a hero headline.
+    // !important on the weight: both sites' headline rules (bold) otherwise win.
+    // Half the headline plus a constant: ~.65 of a 40px hero headline but ~.8
+    // of an 18px sidebar one ("Luetuimmat"), where a plain .6em was unreadable.
+    '.klt-sub{display:block;font-size:calc(.5em + 6px);line-height:1.3;font-weight:400!important;opacity:.75;margin-top:.3em;}' +
     '@keyframes klt-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}' +
     '@media (prefers-reduced-motion:reduce){.klt-marker.klt-working{animation:none;}}';
   (document.head || document.documentElement).appendChild(style);
@@ -87,7 +90,10 @@
     const span = document.createElement('span');
     span.className = 'klt-marker klt-working';
     span.setAttribute('aria-hidden', 'true');
-    el.appendChild(span);
+    // At the end of the headline text, not of `el`: on IL `el` is the whole card
+    // link, and its end is below the category/timestamp line.
+    const main = longestTextNode(el);
+    (main ? headlineBlock(el, main) : el).appendChild(span);
     el._kltMarker = span;
   }
 
@@ -487,15 +493,49 @@
     }
   }
 
+  // The headline's main text node: the longest one.
+  function longestTextNode(el) {
+    let main = null;
+    for (const n of textNodes(el)) {
+      if (!main || n.nodeValue.trim().length > main.nodeValue.trim().length) main = n;
+    }
+    return main;
+  }
+
+  // The nearest block-level element holding the headline text: where the
+  // progress marker and the smaller second line go, so both sit with the
+  // headline and the second line's em size follows the headline font. `el`
+  // itself is wrong on IL, where it is the whole card link and the headline is
+  // a .front-title div inside it with a much larger font.
+  function headlineBlock(el, textNode) {
+    let host = textNode.parentElement;
+    while (host !== el && getComputedStyle(host).display.startsWith('inline')) {
+      host = host.parentElement;
+    }
+    return host;
+  }
+
   // A smaller second line under the headline: the clickbait in
-  // 'rewrite-original', the rewrite in 'spoiler'. It is a child of `el`, so
+  // 'rewrite-original', the rewrite in 'spoiler'. It lands inside `el`, so
   // el.textContent changes from here on — harmless only because a unit marked
   // 'done' is never re-read.
-  function appendSub(el, text) {
+  function appendSub(host, textNode, text) {
     const sub = document.createElement('div');
     sub.className = 'klt-sub';
     sub.textContent = text;
-    el.appendChild(sub);
+    // The page's body font, not the headline's: IS loads its condensed headline
+    // face only in 600/700, so font-weight 400 still rendered bold there.
+    sub.style.fontFamily = getComputedStyle(document.body).fontFamily;
+    // In a flex/grid row a block child becomes one more column, so the second
+    // line sat beside the headline (IL "Luetuimmat"). Stack the headline text
+    // and the line in one item instead.
+    if (textNode.parentElement === host && /flex|grid/.test(getComputedStyle(host).display)) {
+      const stack = document.createElement('span');
+      textNode.replaceWith(stack);
+      stack.append(textNode, sub);
+      return;
+    }
+    host.appendChild(sub);
   }
 
   // Put the rewrite on the page WITHOUT disturbing markup/styling. In the
@@ -511,18 +551,19 @@
     // whitespace-only text nodes in different ways per site (React renders
     // {kicker}{' '}{title}), and any manual join gets the spacing wrong.
     if (collapse(el.textContent) === original) {
+      const nodes = textNodes(el);
+      const main = longestTextNode(el);
+      if (!main) return false;
+      const host = headlineBlock(el, main);
       if (displayMode === 'spoiler') {
-        appendSub(el, rewritten);
+        appendSub(host, main, rewritten);
       } else {
-        const nodes = textNodes(el);
-        if (!nodes.length) return false;
-        let main = nodes[0];
-        for (const n of nodes) {
-          if (n.nodeValue.trim().length > main.nodeValue.trim().length) main = n;
-        }
+        // The headline node's own text, not `original`: on IL that is the whole
+        // card's text, category and timestamp included.
+        const bait = collapse(main.nodeValue);
         for (const n of nodes) n.nodeValue = n === main ? rewritten : '';
         if (!el.title) el.title = 'Alkuperäinen: ' + original;
-        if (displayMode === 'rewrite-original') appendSub(el, original);
+        if (displayMode === 'rewrite-original') appendSub(host, main, bait);
       }
       el.setAttribute('data-klikintappaja-original', original);
       return true;
