@@ -87,6 +87,7 @@ function init() {
         displayMode: 'append',
         mode: 'hosted',
         shareHeadlines: false,
+        dimSkipped: false,
       },
       (cfg) => {
         $('enabled').checked = cfg.enabled !== false;
@@ -95,6 +96,7 @@ function init() {
         $('displayMode').value = cfg.displayMode === 'replace' ? 'replace' : 'append';
         $('mode').value = cfg.mode === 'key' ? 'key' : 'hosted';
         $('shareHeadlines').checked = cfg.shareHeadlines === true;
+        $('dimSkipped').checked = cfg.dimSkipped === true;
         showMode($('mode').value);
         keys = cfg.keys || {};
         models = cfg.models || {};
@@ -122,6 +124,11 @@ $('paywallMode').addEventListener('change', () => {
 
 $('displayMode').addEventListener('change', () => {
   chrome.storage.local.set({ displayMode: $('displayMode').value });
+});
+
+// Applied live like the paywall setting: already-processed teasers are re-treated.
+$('dimSkipped').addEventListener('change', () => {
+  chrome.storage.local.set({ dimSkipped: $('dimSkipped').checked });
 });
 
 $('mode').addEventListener('change', () => {
@@ -174,6 +181,7 @@ $('save').addEventListener('click', () => {
       displayMode: $('displayMode').value,
       mode: $('mode').value,
       shareHeadlines: $('shareHeadlines').checked,
+      dimSkipped: $('dimSkipped').checked,
     },
     () => flash('Tallennettu.')
   );

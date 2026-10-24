@@ -35,6 +35,17 @@
   let mode = 'key'; // key (own API key) | hosted (shared store, Google sign-in)
   let paywallMode = 'hide'; // off | dim (gray + 🫰) | hide
   let displayMode = 'append'; // append (bait + small spoiler below) | replace (spoiler only)
+  // Gray out headlines that were picked up but could not be rewritten — too
+  // little article text, a fetch failure, nothing in the shared store. Off by
+  // default because it makes the page noisier.
+  //
+  // Scope worth being precise about: this covers units that reached
+  // processUnit(). Links `collectUnits` never accepted as articles are NOT
+  // dimmed, because that filter also rejects every nav item, ad and non-article
+  // anchor on the page — dimming those would gray out most of the site. So a
+  // link shape we do not recognise at all (IL's /palat/<uuid> video items, say)
+  // stays invisible here, and needs an ARTICLE_PATTERNS fix instead.
+  let dimSkipped = false;
   let inFlight = 0;
   const queue = [];
   const treated = new Set(); // {el, unit, tier} we applied a paywall treatment to
@@ -181,6 +192,20 @@
 
   const TIER_LABEL = { 'is-extra': 'IS Extra', 'il-plus': 'Iltalehti Plus' };
 
+  // Nothing was rewritten here. Normally that leaves the page untouched; with
+  // `dimSkipped` on, the teaser is grayed so the misses are as visible as the
+  // hits. Recorded in `treated` alongside paywalled ones so a settings change
+  // can undo it without a reload.
+  function markSkipped(el) {
+    removeMarker(el);
+    el.setAttribute(PROCESSED_ATTR, 'skip');
+    if (!dimSkipped) return;
+    const unit = teaserUnit(el);
+    treated.add({ el, unit, tier: null });
+    unit.classList.add('klt-paywalled');
+    el.title = 'Klikintappaja: otsikkoa ei voitu korvata';
+  }
+
   function applyPaywallTreatment(el, tier) {
     const unit = teaserUnit(el);
     const rec = { el, unit, tier };
@@ -202,6 +227,18 @@
   function refreshPaywallTreatments() {
     for (const rec of treated) {
       rec.unit.classList.remove('klt-paywalled', 'klt-paywalled-hidden');
+      // `tier: null` means "we simply could not rewrite this", which is governed
+      // by dimSkipped and must never get the paywall marker — 🫰 says "this
+      // wants your money", a very different claim from "this did not work".
+      if (rec.tier === null) {
+        if (dimSkipped) {
+          rec.unit.classList.add('klt-paywalled');
+          rec.el.title = 'Klikintappaja: otsikkoa ei voitu korvata';
+        } else {
+          rec.el.removeAttribute('title');
+        }
+        continue;
+      }
       if (paywallMode === 'off') {
         removeMarker(rec.el);
         rec.el.removeAttribute('title');
@@ -408,8 +445,7 @@
     }
     const rewritten = result && result.headline;
     if (!rewritten || collapse(rewritten) === original) {
-      removeMarker(el); // nothing changed — don't leave a badge behind
-      el.setAttribute(PROCESSED_ATTR, 'skip');
+      markSkipped(el);
       return;
     }
     const applied = applyHeadline(el, original, collapse(rewritten));
@@ -418,8 +454,7 @@
       el.setAttribute(PROCESSED_ATTR, 'done');
       chrome.runtime.sendMessage({ type: 'increment' }).catch(() => {});
     } else {
-      removeMarker(el);
-      el.setAttribute(PROCESSED_ATTR, 'skip');
+      markSkipped(el);
     }
   }
 
@@ -488,13 +523,14 @@
   }
 
   chrome.storage.local.get(
-    { enabled: true, paywallMode: 'hide', mode: 'key', displayMode: 'append' },
+    { enabled: true, paywallMode: 'hide', mode: 'key', displayMode: 'append', dimSkipped: false },
     (cfg) => {
       enabled = cfg.enabled !== false;
       if (PAYWALL_MODES.includes(cfg.paywallMode)) paywallMode = cfg.paywallMode;
       if (cfg.mode === 'hosted' || cfg.mode === 'key') mode = cfg.mode;
       if (DISPLAY_MODES.includes(cfg.displayMode)) displayMode = cfg.displayMode;
       applyDisplayMode();
+      dimSkipped = cfg.dimSkipped === true;
       if (enabled) start();
     }
   );
@@ -508,6 +544,10 @@
     if (changes.mode) {
       const next = changes.mode.newValue;
       if (next === 'hosted' || next === 'key') mode = next;
+    }
+    if (changes.dimSkipped) {
+      dimSkipped = changes.dimSkipped.newValue === true;
+      refreshPaywallTreatments();
     }
     if (changes.paywallMode) {
       const next = changes.paywallMode.newValue;
