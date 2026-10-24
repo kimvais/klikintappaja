@@ -26,9 +26,9 @@ from the **actual content** (never guessing from the clickbait title). A spinnin
 cached for 24h per article, and regenerated when the article itself is edited —
 so a developing story gets a fresh headline rather than a stale one.
 
-Optional, from the popup: keep the clickbait and show the factual version as a
-smaller **spoiler line** under it (or the spoiler alone), and hide native-ad /
-"kaupallinen yhteistyö" (sponsored content) teasers from the front page.
+By default the original clickbait stays visible in a smaller line under the new
+headline, and native-ad / "kaupallinen yhteistyö" (sponsored content) teasers
+are hidden from the front page. Both are configurable in the popup.
 
 Fully client-side: no backend, no analytics. The only data that leaves your
 browser is the article text sent to the AI provider you selected.

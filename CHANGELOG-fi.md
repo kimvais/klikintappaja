@@ -4,6 +4,18 @@ Kaikki huomionarvoiset muutokset kirjataan tähän tiedostoon. Versionumerot ova
 samat kuin `extension/manifest.json`-tiedostossa, ja jokainen julkaisu vastaa
 `v<versio>`-tagia.
 
+## 0.3.1 — 2026-10-25
+
+### Muutettu
+
+- Otsikko korvataan edelleen, mutta alkuperäinen klikkiotsikko näkyy nyt
+  pienemmällä sen alla. Asetuksesta "Otsikon näyttötapa" voi valita myös
+  pelkän korvatun otsikon tai klikkiotsikon, jonka alla asiallinen otsikko
+  näkyy pienemmällä. Aiempi "Pelkkä spoileri" -vaihtoehto poistettu, koska se
+  näytti samalta kuin pelkkä korvattu otsikko.
+- Mainokset ja kaupalliset yhteistyöt piilotetaan nyt oletuksena. Asetuksesta
+  "Piilota mainokset" ne saa takaisin näkyviin.
+
 ## 0.3.0 — 2026-10-25
 
 ### Muutettu

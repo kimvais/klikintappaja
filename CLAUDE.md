@@ -68,16 +68,16 @@ manual upload.
    An entry is valid only while `sha` (SHA-256 of the extracted body), `provider`
    and `model` all still match — so a **developing story that gets rewritten
    regenerates its headline** on the next view (see 7).
-5. `displayMode` (`rewrite` | `spoiler` | `spoiler-only`, default `rewrite`)
-   decides how the rewrite lands. `rewrite` rewrites the headline element's text
-   nodes in place (longest node gets the text, others blanked) to preserve site
-   markup/styling, and keeps the original clickbait in a `title` tooltip. The
-   spoiler modes wrap the untouched clickbait in `.klt-original` and append a
-   `.klt-spoiler` line; `spoiler-only` hides the wrapper with CSS. Either way,
-   if the detected element holds extra text (a kicker, a timestamp), the
-   deepest descendant whose text is exactly the headline is used instead.
-   Behaviour changes from Tatu's fork stay **opt-in**: the default is what 0.2.0
-   did.
+5. `displayMode` (`rewrite-original` | `rewrite` | `spoiler`, default
+   `rewrite-original`) decides how the rewrite lands. The rewrite modes rewrite
+   the headline element's text nodes in place (longest node gets the text,
+   others blanked) to preserve site markup/styling, and keep the original
+   clickbait in a `title` tooltip; `rewrite-original` also appends it as a
+   smaller `.klt-sub` line. `spoiler` leaves the clickbait untouched and appends
+   the rewrite as the `.klt-sub` line. Either way, if the detected element
+   holds extra text (a kicker, a timestamp), the deepest descendant whose text
+   is exactly the headline is used instead. A mode change applies to headlines
+   processed after it; already-processed ones keep their shape until reload.
 6. `articleid.js` derives the **article identity** from the URL path —
    `is:<digits>` from `/art-<id>.html`, `a:<uuid>` from `/a/<uuid>` (IL/KL share
    the Alma CMS UUID) — falling back to `u5:<uuid>`, a UUIDv5 of the normalized
@@ -110,7 +110,7 @@ manual upload.
    marker 💀 → 🫰, `hide` sets `display:none`. `teaserUnit()` picks what to
    gray/hide by walking up only while the ancestor still covers exactly **one**
    distinct article, so a ticker or card grid can never be swallowed.
-9. **Ad/sponsored teasers are hidden when `hideAds` is on** (off by default;
+9. **Ad/sponsored teasers are hidden when `hideAds` is on** (on by default;
    `markAds()` runs on every scan alongside `collectUnits()`). `AD_SELECTOR`
    matches IS's `.vignette-advertorial` and IL's `.front-sponsored-heading`
    markers; neither points at an article URL, so they never enter the headline

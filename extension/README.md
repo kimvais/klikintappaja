@@ -18,10 +18,10 @@ backend, no data leaves the browser except the article text sent to the LLM.
    headline from the **actual article content** (never from the clickbait title
    alone).
 3. While a headline is being killed, a spinning 💀 badge trails it; once the
-   factual headline is swapped in, the badge turns into a subtle ✨. Hover the
-   headline to see the original clickbait title. Under **Otsikon näyttötapa** the
-   popup can instead keep the clickbait and add a smaller spoiler line under it,
-   or show the spoiler alone.
+   factual headline is swapped in, the badge turns into a subtle ✨ and the
+   original clickbait is shown in a smaller line below. Under **Otsikon
+   näyttötapa** the popup can instead replace the headline outright, or keep the
+   clickbait and show the factual headline in the smaller line.
 4. Results are cached for 24h keyed by the **article ID** in the URL
    (`art-2000012186173` → `is:2000012186173`, `/a/<uuid>` → `a:<uuid>`; anything
    else falls back to a UUIDv5 of the normalized URL). Tracking params, `www.`
@@ -40,7 +40,7 @@ backend, no data leaves the browser except the article text sent to the LLM.
    kokonaan* (removed, the default), *Häivytä* (grayed out, 💀 → 🫰), or *Ei
    mitään* to leave them alone. Locked articles are never sent to the AI provider.
 7. **Native-ad and sponsored ("kaupallinen yhteistyö") teaser cards** are hidden
-   with **Piilota mainokset** in the popup (off by default). They're detected by
+   by default; untick **Piilota mainokset** in the popup to show them. They're detected by
    site-specific CSS markers (`.vignette-advertorial` on IS,
    `.front-sponsored-heading` on IL), never point at a real article URL, and so
    never reach the headline pipeline at all.

@@ -84,23 +84,23 @@ function init() {
         models: {},
         count: 0,
         paywallMode: 'hide',
-        displayMode: 'rewrite',
+        displayMode: 'rewrite-original',
         mode: 'hosted',
         shareHeadlines: false,
         dimSkipped: false,
-        hideAds: false,
+        hideAds: true,
       },
       (cfg) => {
         $('enabled').checked = cfg.enabled !== false;
         $('count').textContent = cfg.count || 0;
         $('paywallMode').value = cfg.paywallMode || 'hide';
-        $('displayMode').value = ['spoiler', 'spoiler-only'].includes(cfg.displayMode)
+        $('displayMode').value = ['rewrite', 'spoiler'].includes(cfg.displayMode)
           ? cfg.displayMode
-          : 'rewrite';
+          : 'rewrite-original';
         $('mode').value = cfg.mode === 'key' ? 'key' : 'hosted';
         $('shareHeadlines').checked = cfg.shareHeadlines === true;
         $('dimSkipped').checked = cfg.dimSkipped === true;
-        $('hideAds').checked = cfg.hideAds === true;
+        $('hideAds').checked = cfg.hideAds !== false;
         showMode($('mode').value);
         keys = cfg.keys || {};
         models = cfg.models || {};
