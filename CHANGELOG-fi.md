@@ -4,6 +4,39 @@ Kaikki huomionarvoiset muutokset kirjataan tähän tiedostoon. Versionumerot ova
 samat kuin `extension/manifest.json`-tiedostossa, ja jokainen julkaisu vastaa
 `v<versio>`-tagia.
 
+## 0.4.0 — julkaisematta
+
+### Lisätty
+
+- **Kirjaudu OpenRouteriin**: API-avainta ei tarvitse enää kopioida itse.
+  Ponnahdusikkunan painike avaa OpenRouterin kirjautumisen, ja laajennus saa
+  avaimen omalle OpenRouter-tilillesi. Tämä on nyt oletuspalvelu; oletusmalli on
+  Anthropicin Claude Haiku 5.5. Oma Gemini-, Claude- tai OpenAI-avain käy
+  edelleen.
+- **Ollama (oma kone)**: otsikot voi tuottaa omalla koneella pyörivällä mallilla
+  (oletuksena Gemma 4). Ei tiliä, ei avainta, ei maksua, eikä juttujen teksti
+  lähde koneelta. Ohjeet ponnahdusikkunassa.
+- **Iltasaatana-tila**: asetuksesta "Otsikon näyttötapa" voi valita tilan, joka
+  jättää klikkiotsikon ennalleen ja lisää sen perään ", saatana!" ("Mitä
+  tapahtui, saatana?"). Juttuja ei haeta eikä tekoälyä käytetä, joten
+  API-avainta ei tarvita.
+
+### Muutettu
+
+- Otsikot ovat lyhyempiä: enintään noin 70 merkkiä, vain pääasia, eikä enää
+  turhia viikonpäiviä tai kellonaikoja ("sunnuntain vastaisena yönä").
+  Uudemmat mallit (kuten Gemini 3.5 Flash-Lite) tuottivat aiemmin selvästi
+  pidempiä otsikoita. Vanhat välimuistissa olevat otsikot tuotetaan uudelleen.
+
+### Poistettu
+
+- Yhteinen otsikkotietokanta ja Google-kirjautuminen on poistettu. Otsikot
+  tuotetaan nyt aina omassa selaimessasi omalla API-avaimellasi, eikä mikään
+  palvelin käsittele juttuja. Syy: Sanoma ja Alma Media kieltävät sisältönsä
+  käytön tekoälyssä, joten laajennus toimii vain lukijan omana apuvälineenä.
+  Jos käytit yhteistä tietokantaa, kirjaudu OpenRouteriin ponnahdusikkunassa.
+- Otsikoiden jakaminen muille on poistettu samasta syystä.
+
 ## 0.3.2 — 2026-10-25
 
 ### Korjattu

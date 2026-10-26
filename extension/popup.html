@@ -68,55 +68,41 @@
       <input type="checkbox" id="enabled" />
     </div>
 
-    <label for="mode">Otsikoiden lähde</label>
-    <select id="mode">
-      <option value="hosted">Yhteinen tietokanta (kirjaudu Googlella)</option>
-      <option value="key">Oma API-avain</option>
-    </select>
+    <label for="provider">Tekoälypalvelu</label>
+    <select id="provider"></select>
 
-    <div id="hostedBox">
+    <div id="openrouterBox">
+      <button id="connect">Kirjaudu OpenRouteriin</button>
       <div class="muted">
-        Ei omaa API-avainta: otsikot haetaan muiden käyttäjien jo tuottamista.
-        Google-tili toimii vain käyttörajan tunnisteena — palvelu ei tallenna
-        sähköpostia eikä nimeä.
+        Luo avaimen OpenRouter-tilillesi, ei tarvitse kopioida mitään. Käyttö
+        maksetaan tilisi krediiteillä. Ikkuna sulkeutuu kirjautumisen ajaksi —
+        avaa se sen jälkeen uudelleen.
       </div>
-      <div class="row">
-        <span id="authState">Ei kirjautunut</span>
-        <span>
-          <button id="signIn">Kirjaudu</button>
-          <button id="signOut">Kirjaudu ulos</button>
-        </span>
-      </div>
-      <div class="muted" id="userKey"></div>
     </div>
 
-    <div id="keyBox">
-      <label for="provider">Tekoälypalvelu</label>
-      <select id="provider"></select>
+    <div id="ollamaBox">
+      <div class="muted">
+        Toimii omalla koneellasi: ei tiliä, ei avainta, ei maksua, eikä juttujen
+        teksti lähde koneelta. Vaatii <a href="https://ollama.com/">Ollaman</a>
+        ja mallin: <code>ollama pull gemma4:e4b</code>.
+      </div>
+    </div>
 
+    <div id="keyFields">
       <label for="apiKey">API-avain</label>
       <input type="password" id="apiKey" autocomplete="off" />
       <div class="muted" id="keyHint"></div>
-
-      <label for="model">Malli</label>
-      <input type="text" id="model" />
-
-      <div class="row">
-        <span>Jaa tuottamani otsikot muille</span>
-        <input type="checkbox" id="shareHeadlines" />
-      </div>
-      <div class="muted">
-        Vapaaehtoinen. Lähettää tuottamasi otsikon ja artikkelin tekstin
-        yhteiseen tietokantaan. Vaatii erikseen myönnetyn oikeuden. Maksumuurin
-        takaisia juttuja ei jaeta koskaan.
-      </div>
     </div>
+
+    <label for="model">Malli</label>
+    <input type="text" id="model" />
 
     <label for="displayMode">Otsikon näyttötapa</label>
     <select id="displayMode">
       <option value="rewrite-original">Korvaa otsikko, klikkiotsikko pienellä alla</option>
       <option value="rewrite">Korvaa otsikko kokonaan</option>
       <option value="spoiler">Pidä klikkiotsikko, asiallinen otsikko pienellä alla</option>
+      <option value="iltasaatana">Iltasaatana: klikkiotsikko + ", saatana!" (ei tekoälyä)</option>
     </select>
     <div class="muted">
       Jo käsitellyt otsikot vaihtuvat uuteen tapaan vasta, kun sivu ladataan

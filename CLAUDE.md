@@ -24,13 +24,11 @@ manual upload.
 
 - `extension/` — the loadable/zippable extension:
   - `manifest.json`, `content.js`, `extractors.js`, `articleid.js`, `prompts.js`,
-    `background.js`, `hosted.js`, `popup.html`/`popup.js`,
-    `welcome.html`/`welcome.js`, `icons/` (16/48/128 skull),
-    `README.md`, `PRIVACY.md`, `LICENSE`.
-- `backend/` — the shared-headline API (FastAPI + MongoDB Atlas on Cloud Run).
-  See `backend/README.md`. The server never calls an LLM.
-- `infra/` — Cloud Run service definition, `deploy.ps1`, GCP setup notes
-  (project `klikintappaja`, OAuth client IDs).
+    `background.js`, `popup.html`/`popup.js`, `welcome.html`,
+    `icons/` (16/48/128 skull), `README.md`, `PRIVACY.md`, `LICENSE`.
+- `backend/`, `infra/` — the **retired** shared-headline API (FastAPI + MongoDB
+  Atlas on Cloud Run) and its deployment. Nothing in the extension calls it
+  since 0.4.0; see the invariant on hosted modes below.
 - `store/` — Web Store listing assets (icon 128/512, 1280×800 before/after
   screenshot, 440×280 + 1400×560 promo tiles).
 - `build.ps1` — zips the **contents** of `extension/` → `klikintappaja-extension.zip`
@@ -59,16 +57,25 @@ manual upload.
    the SW can, for hosts in `host_permissions`. The content script parses it with
    `DOMParser` and extracts the body with `extractors.js` (site-specific, generic
    fallback), keyed on the **article's** hostname.
-4. `background.js` has a **provider registry** (`PROVIDERS`): Gemini (default
-   `gemini-3.5-flash`), Anthropic (`claude-haiku-4-5`), OpenAI
-   (`gpt-4o-mini`). It sends the ported prompt + article body, sanitizes the
+4. `background.js` has a **provider registry** (`PROVIDERS`): OpenRouter (the
+   default, `anthropic/claude-haiku-5.5`), Ollama (local, `gemma4:e4b`, no key:
+   `needsKey: false`; native `/api/chat` with `think: false` — Gemma 4 thinking
+   measured 65 s vs 0.5–0.8 s per headline; Ollama 0.40.8 accepts extension
+   origins by default, older ones answer 403 without `OLLAMA_ORIGINS`), Gemini
+   (`gemini-3.5-flash`),
+   Anthropic (`claude-haiku-4-5`), OpenAI (`gpt-4o-mini`). OpenRouter's key comes
+   from `connectOpenRouter()`: OAuth PKCE via `chrome.identity.launchWebAuthFlow`
+   (hence the `identity` permission), run in the SW because the popup closes when
+   the sign-in window opens. The key is issued to the user's own OpenRouter
+   account, so this stays within the no-hosted-mode invariant. `getConfig()`
+   maps a stored legacy flat `apiKey` with no provider to Gemini, not to the
+   default. It sends the ported prompt + article body, sanitizes the
    result, and caches it in `chrome.storage.local` for 24h keyed by **article ID**
-   (see 6). A future hosted/shared-API provider (no user key) would be one more
-   registry entry.
+   (see 6). The key is always the user's own.
    An entry is valid only while `sha` (SHA-256 of the extracted body), `provider`
    and `model` all still match — so a **developing story that gets rewritten
-   regenerates its headline** on the next view (see 7).
-5. `displayMode` (`rewrite-original` | `rewrite` | `spoiler`, default
+   regenerates its headline** on the next view (see 10).
+5. `displayMode` (`rewrite-original` | `rewrite` | `spoiler` | `iltasaatana`, default
    `rewrite-original`) decides how the rewrite lands. The rewrite modes rewrite
    the headline element's text nodes in place (longest node gets the text,
    others blanked) to preserve site markup/styling, and keep the original
@@ -76,7 +83,9 @@ manual upload.
    smaller `.klt-sub` line. `spoiler` leaves the clickbait untouched and appends
    the rewrite as the `.klt-sub` line. Either way, if the detected element
    holds extra text (a kicker, a timestamp), the deepest descendant whose text
-   is exactly the headline is used instead. A mode change applies to headlines
+   is exactly the headline is used instead. `iltasaatana` is the joke mode: it
+   skips the fetch and the LLM entirely (so no key, no paywall check) and
+   `curse()`s the headline node in place ("…, saatana!"). A mode change applies to headlines
    processed after it; already-processed ones keep their shape until reload.
 6. `articleid.js` derives the **article identity** from the URL path —
    `is:<digits>` from `/art-<id>.html`, `a:<uuid>` from `/a/<uuid>` (IL/KL share
@@ -86,18 +95,8 @@ manual upload.
    several links is fetched and rewritten once. Loaded in both contexts, so it is
    a classic IIFE on `globalThis.KlikintappajaIds` (like `extractors.js`),
    `import`ed for its side effect by the module SW.
-7. **Two sources of headlines**, chosen by `mode` in storage:
-   - `key` (original): own API key, article fetched and rewritten locally.
-   - `hosted`: `hosted.js` looks the article ID up in the shared API and stops —
-     **no article fetch, no LLM call, no key**. That is the whole point; the cost
-     is coverage, since an article nobody has contributed has no headline.
-   `hosted.js` picks its OAuth client from `chrome.runtime.id`, so the published
-   and unpacked builds each use their own without a constant to flip. Sign-in is
-   `launchWebAuthFlow` with `response_type=id_token`, scope `openid` only; the
-   nonce is checked client-side and the signature server-side. Key users may opt
-   in (`shareHeadlines`, off by default) to POST what they generate; that call is
-   fire-and-forget and must never affect the headline the user already has.
-   `welcome.html` opens once on `reason === 'install'` to make the mode choice.
+7. `welcome.html` opens once on `reason === 'install'` and tells the user to
+   enter their own API key, and why there is no other option.
 8. **Paywalls.** `fetchArticle` uses `credentials: 'include'` **on purpose** — it
    is what lets a logged-in IS Extra / Iltalehti Plus subscriber get real article
    text (and a real headline). `detectPaywall(doc, host, body)` returns
@@ -127,6 +126,14 @@ manual upload.
    validator.
 
 ## Invariants — do NOT regress these
+
+- **No hosted or shared mode, ever.** Sanoma and Alma Media prohibit using their
+  content for AI. Fetching and processing articles on a server of ours would be
+  us doing exactly that and would give them grounds for legal action. The
+  extension must stay a per-reader tool — runs in the reader's browser, only on
+  pages they read, with their own API key — the equivalent of a screen reader.
+  No backend calls, no shared headline store, no contributing article text or
+  headlines anywhere. Removed in 0.4.0; see README "Why your own API key".
 
 - Progress-marker glyphs are CSS `::after`, **not** text — keeps
   `textContent === original` so detection/replacement stay correct.

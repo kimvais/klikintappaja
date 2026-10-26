@@ -16,7 +16,7 @@
   const CARD_LOOKUP_HOPS = 4; // ancestors to search for an article link
   const TEASER_LOOKUP_HOPS = 4; // ancestors to consider as "this one teaser"
   const PAYWALL_MODES = ['off', 'dim', 'hide'];
-  const DISPLAY_MODES = ['rewrite-original', 'rewrite', 'spoiler'];
+  const DISPLAY_MODES = ['rewrite-original', 'rewrite', 'spoiler', 'iltasaatana'];
   // Native-ad / sponsored-content teaser markers, found by inspecting the live
   // front pages (2026-10-01): IS labels an advertorial span
   // `teaser-vignette__title-advertorial` inside `.vignette-advertorial`; IL
@@ -33,15 +33,15 @@
   ];
 
   let enabled = true;
-  let mode = 'key'; // key (own API key) | hosted (shared store, Google sign-in)
   let paywallMode = 'hide'; // off | dim (gray + 🫰) | hide
   // rewrite-original (text swapped in place, clickbait small below) |
-  // rewrite (text swapped in place) | spoiler (clickbait kept, rewrite small below)
+  // rewrite (text swapped in place) | spoiler (clickbait kept, rewrite small below) |
+  // iltasaatana (clickbait kept, ", saatana" added; no fetch, no LLM)
   let displayMode = 'rewrite-original';
   let hideAds = true;
   // Gray out headlines that were picked up but could not be rewritten — too
-  // little article text, a fetch failure, nothing in the shared store. Off by
-  // default because it makes the page noisier.
+  // little article text, a fetch failure, an LLM error. Off by default because
+  // it makes the page noisier.
   //
   // Scope worth being precise about: this covers units that reached
   // processUnit(). Links `collectUnits` never accepted as articles are NOT
@@ -391,21 +391,6 @@
 
   // --- the per-headline pipeline -------------------------------------------
 
-  // Hosted mode: ask the shared store for a headline by article ID and stop
-  // there. No article fetch, no LLM call, no API key — the ID comes from the
-  // front-page link alone, so this is both instant and free. The cost is
-  // coverage: an article nobody has contributed yet simply has no headline.
-  async function lookupShared(url) {
-    const reply = await chrome.runtime.sendMessage({ type: 'lookup', url });
-    if (!reply || reply.error) {
-      if (reply && reply.error && reply.error !== 'not-found') {
-        console.debug('[klikintappaja] lookup:', reply.error);
-      }
-      return null;
-    }
-    return reply.headline ? { headline: reply.headline } : null;
-  }
-
   async function fetchAndRewrite(url, originalHeadline) {
     // Synchronous on purpose: the ID must be resolved before the first await,
     // or two headlines for the same article could both miss the map and fetch.
@@ -413,11 +398,6 @@
     // effectively always hits; the URL is a belt-and-braces fallback.
     const id = globalThis.KlikintappajaIds.articleIdFromUrl(url) || url;
     if (articleCache.has(id)) return articleCache.get(id);
-    if (mode === 'hosted') {
-      const p = lookupShared(url);
-      articleCache.set(id, p);
-      return p;
-    }
     const p = (async () => {
       // Fetch via the service worker: content-script fetches can't go
       // cross-origin in MV3 even with host permission, and article links may
@@ -443,11 +423,7 @@
       const pw = globalThis.UutisExtractors.detectPaywall(doc, host, body);
       if (pw.locked && paywallMode !== 'off') return { paywalled: pw.premium };
       if (!body || body.length < 120) return null; // not enough ground truth
-      // Passed on even when paywallMode is 'off' and we are about to rewrite it
-      // anyway: whether to *show* a locked article is a display preference,
-      // whether to *share* one is not, and the two must not be conflated.
       const reply = await chrome.runtime.sendMessage({
-        paywalled: pw.locked,
         type: 'rewrite',
         url,
         originalHeadline,
@@ -468,6 +444,16 @@
     if (!enabled) return;
     const original = el._kltHeadline;
     const url = el._kltUrl;
+    if (displayMode === 'iltasaatana') {
+      // Nothing to fetch: the clickbait stays, it just gets told what it is.
+      if (applyHeadline(el, original, null)) {
+        setMarkerDone(el);
+        el.setAttribute(PROCESSED_ATTR, 'done');
+      } else {
+        markSkipped(el);
+      }
+      return;
+    }
     let result = null;
     try {
       result = await fetchAndRewrite(url, original);
@@ -538,6 +524,14 @@
     host.appendChild(sub);
   }
 
+  // "Mitä tapahtui?" → "Mitä tapahtui, saatana?", "Näin se meni" → "Näin se
+  // meni, saatana!". A ? or ! is kept; a full stop or ellipsis becomes the !.
+  // Surrounding whitespace is kept, since the node sits among sibling nodes.
+  function curse(text) {
+    const [, lead, core, mark, trail] = text.match(/^(\s*)(.*?)([?!]*)[.…]*(\s*)$/s);
+    return lead + core + ', saatana' + (mark || '!') + trail;
+  }
+
   // Put the rewrite on the page WITHOUT disturbing markup/styling. In the
   // rewrite modes the element's text nodes are rewritten in place (the longest
   // node gets the new text, the rest are blanked), keeping every wrapping
@@ -555,7 +549,9 @@
       const main = longestTextNode(el);
       if (!main) return false;
       const host = headlineBlock(el, main);
-      if (displayMode === 'spoiler') {
+      if (displayMode === 'iltasaatana') {
+        main.nodeValue = curse(main.nodeValue);
+      } else if (displayMode === 'spoiler') {
         appendSub(host, main, rewritten);
       } else {
         // The headline node's own text, not `original`: on IL that is the whole
@@ -601,7 +597,6 @@
     {
       enabled: true,
       paywallMode: 'hide',
-      mode: 'key',
       displayMode: 'rewrite-original',
       dimSkipped: false,
       hideAds: true,
@@ -609,7 +604,6 @@
     (cfg) => {
       enabled = cfg.enabled !== false;
       if (PAYWALL_MODES.includes(cfg.paywallMode)) paywallMode = cfg.paywallMode;
-      if (cfg.mode === 'hosted' || cfg.mode === 'key') mode = cfg.mode;
       if (DISPLAY_MODES.includes(cfg.displayMode)) displayMode = cfg.displayMode;
       dimSkipped = cfg.dimSkipped === true;
       hideAds = cfg.hideAds !== false;
@@ -622,10 +616,6 @@
     if (changes.enabled) {
       enabled = changes.enabled.newValue !== false;
       if (enabled) start();
-    }
-    if (changes.mode) {
-      const next = changes.mode.newValue;
-      if (next === 'hosted' || next === 'key') mode = next;
     }
     if (changes.dimSkipped) {
       dimSkipped = changes.dimSkipped.newValue === true;

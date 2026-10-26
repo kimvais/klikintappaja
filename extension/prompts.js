@@ -38,6 +38,21 @@ export const TASK_HEADLINE =
   'HUONO: "Rauhoitettu eläin piinaa viljelijöitä – hallituspuolue huolestui"' +
   'HYVÄ: "RKP:n kansanedustajat vaativat kurkihaittojen rajoittamista metsästyksellä Ruotsin mallin mukaisesti"\n';
 
+// Not from `uutis`: added for the extension. Measured on 7 live IS/IL articles
+// (2026-10-25): without it gemini-3.5-flash-lite averaged 10.6 words / 109
+// chars, padding headlines with weekdays, times of day and titles because
+// TASK_HEADLINE asks for Who/What/Where/When and "always a time frame" — right
+// for an archive, noise on a front page of today's news. With it: 6.6 / 69.
+// A 12-word limit did not bind on 3.5 (9.3 words); characters do. It sits after
+// the examples on purpose: they run 12–15 words, and a rule stated before them
+// loses to them.
+export const LENGTH_RULE =
+  'PITUUS JA MUOTO: Otsikko on enintään 70 merkkiä. Kirjoita yksi tiivis päälause ' +
+  'ilman sivulauseita ja ilman loppupistettä. Kerro vain uutisen pääasia; jätä taustat, ' +
+  'perustelut ja toissijaiset yksityiskohdat pois. Nämä ovat tuoreita uutisia, joten ' +
+  'jätä päivämäärät, viikonpäivät ja vuorokaudenajat pois, ellei ajankohta ole itse uutinen. ' +
+  'Jos käytät maan nimeä etuliitteenä, älä toista maata enää otsikon loppuosassa.';
+
 // Fallback appended on a retry when the model drifts out of Finnish.
 export const HARDCORE_FINNISH =
   'Vastauksesi EI saa olla millään muulla kielellä kuin suomeksi. Vastaa suomeksi. TÄRKEÄÄ: Vastaa SUOMEKSI!';
@@ -46,7 +61,7 @@ export const HARDCORE_FINNISH =
 // to answer when the clickbait title was phrased as one; `body` is the ground
 // truth so it never has to guess the withheld payoff.
 export function buildHeadlinePrompt({ originalHeadline, body }) {
-  const parts = [TASK_HEADLINE];
+  const parts = [TASK_HEADLINE, LENGTH_RULE];
   if (originalHeadline) {
     parts.push(`Alkuperäinen otsikko: ${originalHeadline}`);
   }
