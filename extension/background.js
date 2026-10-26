@@ -3,26 +3,31 @@
 // by article ID. The content script never sees the key or talks to the LLM.
 //
 // Provider abstraction: each entry knows its default model and how to turn
-// (system, prompt) into a headline string. Adding a hosted/shared-API provider
-// later (so users don't need their own key) is just one more entry here — the
-// "shared API pivot" the project is heading toward, without a backend today.
+// (system, prompt) into a headline string.
+//
+// Everything runs here, for one reader, with that reader's own key — never on a
+// server of ours. Sanoma and Alma Media prohibit using their content for AI, so
+// a hosted service would be us doing exactly that; a per-user client is the
+// equivalent of a screen reader. Do not add a hosted or shared mode.
 
 import { SYSTEM_INSTRUCTION, HARDCORE_FINNISH, buildHeadlinePrompt } from './prompts.js';
 // articleid.js is a classic script (it is also injected as a content script, and
 // content scripts can't be modules), so it is imported for its side effect and
 // read off globalThis — same arrangement as extractors.js on the content side.
 import './articleid.js';
-import * as hosted from './hosted.js';
 
 const { articleKey, contentHash } = globalThis.KlikintappajaIds;
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
-const CACHE_VERSION = 2; // 1 = URL-keyed, no content hash
+// 1 = URL-keyed, no content hash; 2 = before LENGTH_RULE. Bump whenever the
+// prompt changes: the cache is valid only while every input to the headline is.
+const CACHE_VERSION = 3;
 const MAX_OUT_CHARS = 300;
 // Generous enough that gemini-3.x's default-level thinking doesn't crowd out
 // the headline itself — see the MAX_TOKENS finishReason check in the gemini
 // provider below, which catches it if this still isn't enough.
 const MAX_TOKENS = 1200;
+const OLLAMA_URL = 'http://localhost:11434';
 
 function retryable(status) {
   return status === 429 || status >= 500;
@@ -35,6 +40,71 @@ async function readJson(res) {
 // --- providers -------------------------------------------------------------
 
 const PROVIDERS = {
+  // First, so it is what a new user sees: the key comes from signing in
+  // (connectOpenRouter), not from pasting one. Still the user's own account and
+  // credits — OpenRouter only routes the call to the model's provider.
+  openrouter: {
+    label: 'OpenRouter (kirjaudu)',
+    defaultModel: 'anthropic/claude-haiku-5.5', // cheapest capable model there
+    keyHint: 'sk-or-…  (saat avaimen kirjautumalla)',
+    async call({ apiKey, model, system, prompt }) {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+          'X-Title': 'Klikintappaja', // app attribution on OpenRouter's side
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0,
+          max_tokens: MAX_TOKENS,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: prompt },
+          ],
+        }),
+      });
+      if (!res.ok) throwHttp(res.status, 'openrouter');
+      const data = await readJson(res);
+      return data?.choices?.[0]?.message?.content || '';
+    },
+  },
+
+  // Runs on the user's own machine: no account, no key, no cost, and the
+  // article text never leaves the computer. Ollama 0.40.8 accepts
+  // chrome-extension:// origins by default (measured); an Ollama that refuses
+  // them answers 403, hence the dedicated message.
+  ollama: {
+    label: 'Ollama (oma kone)',
+    defaultModel: 'gemma4:e4b', // Gemma handles Finnish far better than Qwen at this size
+    needsKey: false,
+    async call({ model, system, prompt }) {
+      // The native endpoint, not /v1: it returns a thinking model's reasoning in
+      // a separate field, so `content` is only the answer.
+      const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          stream: false,
+          // Gemma 4 thinks by default: measured 65 s for one headline with it,
+          // 0.5–0.8 s without, and the headlines were no worse.
+          think: false,
+          options: { temperature: 0, num_predict: MAX_TOKENS },
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: prompt },
+          ],
+        }),
+      });
+      if (res.status === 403) throw new Error('ollama 403: update Ollama or set OLLAMA_ORIGINS=chrome-extension://*');
+      if (!res.ok) throwHttp(res.status, 'ollama');
+      const data = await readJson(res);
+      return data?.message?.content || '';
+    },
+  },
+
   gemini: {
     label: 'Google Gemini',
     defaultModel: 'gemini-3.5-flash', // 2.5-flash-lite started 404ing for new API keys
@@ -134,7 +204,10 @@ const PROVIDERS = {
   },
 };
 
-const DEFAULT_PROVIDER = 'gemini';
+const DEFAULT_PROVIDER = 'openrouter';
+// Users of the pre-multi-provider popup stored a bare Gemini key as `apiKey`
+// and never stored a provider at all.
+const LEGACY_PROVIDER = 'gemini';
 
 function throwHttp(status, provider) {
   const err = new Error(`${provider} ${status}`);
@@ -154,19 +227,24 @@ function cacheKey(id) {
 
 async function getConfig() {
   const cfg = await chrome.storage.local.get({
-    provider: DEFAULT_PROVIDER,
+    provider: null,
     keys: {},
     models: {},
     apiKey: '', // legacy flat fields (pre-multi-provider popup)
     model: '',
   });
-  const provider = PROVIDERS[cfg.provider] ? cfg.provider : DEFAULT_PROVIDER;
+  const provider = PROVIDERS[cfg.provider]
+    ? cfg.provider
+    : cfg.apiKey
+      ? LEGACY_PROVIDER
+      : DEFAULT_PROVIDER;
   // Fall back to the legacy flat key/model if nothing is stored per-provider —
   // a key saved by the older popup lived under `apiKey`, not `keys.gemini`.
-  const apiKey = (cfg.keys && cfg.keys[provider]) || cfg.apiKey || '';
+  const apiKey =
+    (cfg.keys && cfg.keys[provider]) || (provider === LEGACY_PROVIDER && cfg.apiKey) || '';
   const model =
     (cfg.models && cfg.models[provider]) ||
-    (provider === DEFAULT_PROVIDER && cfg.model) ||
+    (provider === LEGACY_PROVIDER && cfg.model) ||
     PROVIDERS[provider].defaultModel;
   return { provider, apiKey, model };
 }
@@ -262,7 +340,7 @@ async function generateHeadline({ provider, apiKey, model, originalHeadline, bod
 
 // --- message handling -------------------------------------------------------
 
-async function handleRewrite({ url, originalHeadline, body, mod, paywalled }) {
+async function handleRewrite({ url, originalHeadline, body, mod }) {
   const id = await articleKey(url);
   const sha = await contentHash(body);
   // Config is read before the cache check (it is key-independent) because the
@@ -272,54 +350,13 @@ async function handleRewrite({ url, originalHeadline, body, mod, paywalled }) {
   const cached = await readCache(id, { sha, provider, model });
   if (cached) return { headline: cached };
 
-  if (!apiKey) return { error: 'no-api-key' };
+  if (!apiKey && PROVIDERS[provider].needsKey !== false) return { error: 'no-api-key' };
 
   const headline = await generateHeadline({ provider, apiKey, model, originalHeadline, body });
   if (!headline) return { error: 'empty-output' };
 
   await writeCache(id, { headline, sha, mod, provider, model, original: originalHeadline });
-
-  // Share it, if the user opted in. Deliberately not awaited into the result:
-  // a failed contribution — offline, not approved, rate-limited — must never
-  // cost the user the headline they just paid to generate.
-  shareHeadline({
-    id,
-    headline,
-    body,
-    originalHeadline,
-    provider,
-    model,
-    paywalled: Boolean(paywalled),
-  }).catch((err) => console.debug('[klikintappaja] share failed:', err));
-
   return { headline };
-}
-
-// --- hosted (shared) headlines ---------------------------------------------
-
-// Look a headline up in the shared store. This is the whole point of the hosted
-// mode: no article fetch, no LLM call, no API key — just the article ID, which
-// is derivable from the front-page link alone.
-async function handleLookup({ url }) {
-  const id = await articleKey(url);
-  const { data, error } = await hosted.lookupHeadline(id);
-  if (error) return { error };
-  return { headline: data.headline, sha: data.sha };
-}
-
-async function shareHeadline({ id, headline, body, originalHeadline, provider, model, paywalled }) {
-  const { shareHeadlines } = await chrome.storage.local.get({ shareHeadlines: false });
-  if (!shareHeadlines) return;
-  if (paywalled) return; // never contribute subscriber-only text
-  const { error } = await hosted.contributeHeadline(id, {
-    headline,
-    body,
-    original_headline: originalHeadline || null,
-    provider,
-    model,
-    paywalled: false,
-  });
-  if (error) console.debug('[klikintappaja] contribution rejected:', error);
 }
 
 // Fetch article HTML on behalf of the content script. The service worker can
@@ -335,6 +372,53 @@ async function fetchArticle(url) {
   const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) return { error: 'fetch ' + res.status };
   return { html: await res.text() };
+}
+
+// --- OpenRouter sign-in ------------------------------------------------------
+
+function base64url(bytes) {
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+// OAuth PKCE (https://openrouter.ai/docs/use-cases/oauth-pkce): the user signs
+// in at OpenRouter and approves, and we receive an API key issued to *their*
+// account. Runs in the worker, not the popup, because the popup closes as soon
+// as the sign-in window takes focus.
+async function connectOpenRouter() {
+  const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  const state = base64url(crypto.getRandomValues(new Uint8Array(16)));
+  const auth = new URL('https://openrouter.ai/auth');
+  auth.search = new URLSearchParams({
+    callback_url: chrome.identity.getRedirectURL('openrouter'),
+    code_challenge: base64url(new Uint8Array(digest)),
+    code_challenge_method: 'S256',
+    key_label: 'Klikintappaja',
+    state,
+  });
+  const redirect = new URL(
+    await chrome.identity.launchWebAuthFlow({ url: auth.href, interactive: true })
+  );
+  // Fail closed: a callback carrying someone else's state is not ours to use.
+  if (redirect.searchParams.get('state') !== state) throw new Error('state mismatch');
+  const code = redirect.searchParams.get('code');
+  if (!code) throw new Error('no code in callback');
+
+  const res = await fetch('https://openrouter.ai/api/v1/auth/keys', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, code_verifier: verifier, code_challenge_method: 'S256' }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`openrouter key exchange ${res.status}`);
+  const { key } = await readJson(res);
+  if (!key) throw new Error('openrouter returned no key');
+
+  const { keys = {} } = await chrome.storage.local.get({ keys: {} });
+  await chrome.storage.local.set({ keys: { ...keys, openrouter: key }, provider: 'openrouter' });
 }
 
 async function incrementCount() {
@@ -354,7 +438,12 @@ async function clearCache() {
 function providerInfo() {
   const out = {};
   for (const [id, p] of Object.entries(PROVIDERS)) {
-    out[id] = { label: p.label, defaultModel: p.defaultModel, keyHint: p.keyHint };
+    out[id] = {
+      label: p.label,
+      defaultModel: p.defaultModel,
+      keyHint: p.keyHint,
+      needsKey: p.needsKey !== false,
+    };
   }
   return out;
 }
@@ -362,8 +451,7 @@ function providerInfo() {
 chrome.runtime.onInstalled.addListener((details) => {
   pruneCache().catch(() => {});
   // Only on a genuine first install — not on every update, and not when Chrome
-  // itself updates. A new user otherwise has no idea a choice exists between
-  // signing in and bringing their own key.
+  // itself updates. A new user otherwise has no idea a key is needed.
   if (details.reason === 'install') {
     chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') }).catch(() => {});
   }
@@ -394,47 +482,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     clearCache().then((n) => sendResponse({ cleared: n }));
     return true;
   }
-  if (msg.type === 'lookup') {
-    handleLookup(msg)
-      .then(sendResponse)
-      .catch((err) => sendResponse({ error: String((err && err.message) || err) }));
-    return true; // async
-  }
   if (msg.type === 'providers') {
-    sendResponse({ providers: providerInfo(), default: DEFAULT_PROVIDER });
-    return false;
-  }
-  if (msg.type === 'signIn') {
-    hosted
-      .signIn()
-      .then((ok) => sendResponse({ ok }))
-      .catch((err) => sendResponse({ error: String((err && err.message) || err) }));
+    // `active` is what getConfig() resolves to, so the popup shows the provider
+    // that is actually in use (a legacy-key user's is not the default).
+    getConfig().then(({ provider }) =>
+      sendResponse({ providers: providerInfo(), default: DEFAULT_PROVIDER, active: provider })
+    );
     return true;
   }
-  if (msg.type === 'signOut') {
-    hosted.signOut().then(() => sendResponse({ ok: true }));
-    return true;
-  }
-  if (msg.type === 'authStatus') {
-    // `whoami` also tells the user their pseudonymous key, which is what they
-    // must quote to be approved as a contributor.
-    hosted
-      .isSignedIn()
-      .then(async (signedIn) => {
-        if (!signedIn) return { signedIn: false, configured: hosted.isConfigured() };
-        const { data, error } = await hosted.whoami();
-        return {
-          signedIn: true,
-          configured: hosted.isConfigured(),
-          userKey: data ? data.user_key : null,
-          contributor: Boolean(data && data.contributor),
-          // Reported separately from `error`: being signed in with the API
-          // unreachable is a different situation from failing to sign in, and
-          // conflating them sends you debugging the wrong half.
-          apiError: error || null,
-        };
-      })
-      .then(sendResponse)
+  if (msg.type === 'connectOpenRouter') {
+    connectOpenRouter()
+      .then(() => sendResponse({ ok: true }))
       .catch((err) => sendResponse({ error: String((err && err.message) || err) }));
     return true;
   }

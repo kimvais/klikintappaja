@@ -57,6 +57,8 @@ backend, no data leaves the browser except the article text sent to the LLM.
 
 | Provider | Get a key | Default model |
 | --- | --- | --- |
+| OpenRouter | **Kirjaudu OpenRouteriin** in the popup (OAuth PKCE) | `anthropic/claude-haiku-5.5` |
+| Ollama (local) | none; `ollama pull gemma4:e4b` (see the repo [README](../README.md#local-model-with-ollama)) | `gemma4:e4b` |
 | Google Gemini | https://aistudio.google.com/apikey | `gemini-3.5-flash` |
 | Anthropic Claude | https://console.anthropic.com | `claude-haiku-4-5` |
 | OpenAI ChatGPT | https://platform.openai.com/api-keys | `gpt-4o-mini` |
@@ -78,9 +80,10 @@ extension on/off or clear the cache from the popup.
   `ARTICLE_PATTERNS` in `content.js`.
 - On any failure (no key, fetch error, thin article body, LLM error) the original
   headline is left untouched.
-- Providers live in a small registry (`PROVIDERS`) in `background.js`. Adding a
-  future **hosted / shared-API** provider — so users don't each need a key — is
-  one more entry there; no other code changes.
+- Providers live in a small registry (`PROVIDERS`) in `background.js`. There is
+  deliberately no hosted / shared mode: the publishers prohibit AI use of their
+  content, so the extension stays a per-reader tool with the reader's own key
+  (see the repo [README](../README.md#why-your-own-api-key-and-why-browser-only)).
 - Cost is tiny with the default fast models (~0.5–1.5k input tokens/article), and
   the 24h per-URL cache avoids repeat calls.
 

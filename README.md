@@ -33,13 +33,36 @@ are hidden from the front page. Both are configurable in the popup.
 Fully client-side: no backend, no analytics. The only data that leaves your
 browser is the article text sent to the AI provider you selected.
 
+## Why your own API key, and why browser-only
+
+Both publishers, **Sanoma** (Ilta-Sanomat) and **Alma Media** (Iltalehti,
+Kauppalehti), prohibit using their content for AI. A hosted service that fetched
+their articles and ran them through a model would be the service operator doing
+exactly that, at scale, on its own servers — which gives the publishers grounds
+for legal action.
+
+So Klikintappaja is deliberately not a service. It runs entirely in your
+browser, only on pages you are already reading, and calls an AI provider with
+**your own** API key on your behalf. No server of ours ever sees an article. In
+that shape it is the equivalent of a screen reader or any other assistive tool
+acting for one reader — which is also why there is no shared headline database
+or "no key needed" option, and why there will not be one.
+
+The accessibility framing is literal, not a figure of speech: for readers with
+ADHD or autism, clickbait is a barrier rather than a style choice. A headline
+built to withhold the point, or to provoke, costs them attention and energy that
+a plain factual headline does not.
+
 ## Install
 
 **[➜ Get it from the Chrome Web Store](https://chromewebstore.google.com/detail/jcdabpknfbcbcdbipfclhknoglhgecjl)**
 — also the way to install it in Brave, Vivaldi and other Chromium browsers,
 which have no separate store.
 
-Then open the popup, choose a provider, paste your API key, **Tallenna** (Save).
+Then open the popup and click **Kirjaudu OpenRouteriin** (sign in to
+OpenRouter): the extension gets an API key for your own OpenRouter account,
+nothing to copy and paste. Or pick Gemini / Claude / OpenAI, paste a key you
+already have, and **Tallenna** (Save).
 
 ### Install unpacked (development, or to run the newest code)
 
@@ -51,18 +74,37 @@ The store version can lag behind `main`. To run the latest:
    the zip it produces, or point Chrome straight at the `extension/` folder.
 2. `chrome://extensions` → enable **Developer mode** → **Load unpacked** → pick
    the folder containing `manifest.json`.
-3. Open the popup, choose a provider, paste your API key, **Tallenna** (Save).
+3. Open the popup and sign in to OpenRouter, or choose a provider, paste your
+   API key, **Tallenna** (Save).
 
-### Providers (bring your own key)
+### Providers (your own account either way)
 
 | Provider | Get a key | Default model |
 | --- | --- | --- |
+| OpenRouter | sign in from the popup (OAuth PKCE) | `anthropic/claude-haiku-5.5` |
+| Ollama (local) | no key — see below | `gemma4:e4b` |
 | Google Gemini | https://aistudio.google.com/apikey | `gemini-3.5-flash` |
 | Anthropic Claude | https://console.anthropic.com | `claude-haiku-4-5` |
 | OpenAI ChatGPT | https://platform.openai.com/api-keys | `gpt-4o-mini` |
 
 Keys are stored per-provider in `chrome.storage.local` and never leave the
 browser except in the request to the provider you chose.
+
+### Local model with Ollama
+
+No account, no key, no cost, and the article text never leaves your computer.
+
+1. Install [Ollama](https://ollama.com/) and pull the model:
+   `ollama pull gemma4:e4b` (6.6 GB; any other model name works too).
+2. In the popup choose **Ollama (oma kone)**.
+
+Gemma is the default because it handles Finnish well for its size; Qwen models
+are weaker in Finnish. Thinking is switched off (`think: false`): on Gemma 4 it
+took a headline from under a second to over a minute.
+
+Current Ollama (0.40.8 tested) accepts requests from browser extensions. If
+yours answers 403, update it, or allow extensions explicitly and restart Ollama:
+`[Environment]::SetEnvironmentVariable('OLLAMA_ORIGINS', 'chrome-extension://*', 'User')`.
 
 ## Build
 
