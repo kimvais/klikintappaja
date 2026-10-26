@@ -75,7 +75,7 @@ manual upload.
    An entry is valid only while `sha` (SHA-256 of the extracted body), `provider`
    and `model` all still match — so a **developing story that gets rewritten
    regenerates its headline** on the next view (see 10).
-5. `displayMode` (`rewrite-original` | `rewrite` | `spoiler`, default
+5. `displayMode` (`rewrite-original` | `rewrite` | `spoiler` | `iltasaatana`, default
    `rewrite-original`) decides how the rewrite lands. The rewrite modes rewrite
    the headline element's text nodes in place (longest node gets the text,
    others blanked) to preserve site markup/styling, and keep the original
@@ -83,7 +83,9 @@ manual upload.
    smaller `.klt-sub` line. `spoiler` leaves the clickbait untouched and appends
    the rewrite as the `.klt-sub` line. Either way, if the detected element
    holds extra text (a kicker, a timestamp), the deepest descendant whose text
-   is exactly the headline is used instead. A mode change applies to headlines
+   is exactly the headline is used instead. `iltasaatana` is the joke mode: it
+   skips the fetch and the LLM entirely (so no key, no paywall check) and
+   `curse()`s the headline node in place ("…, saatana!"). A mode change applies to headlines
    processed after it; already-processed ones keep their shape until reload.
 6. `articleid.js` derives the **article identity** from the URL path —
    `is:<digits>` from `/art-<id>.html`, `a:<uuid>` from `/a/<uuid>` (IL/KL share

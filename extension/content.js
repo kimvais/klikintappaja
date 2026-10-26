@@ -16,7 +16,7 @@
   const CARD_LOOKUP_HOPS = 4; // ancestors to search for an article link
   const TEASER_LOOKUP_HOPS = 4; // ancestors to consider as "this one teaser"
   const PAYWALL_MODES = ['off', 'dim', 'hide'];
-  const DISPLAY_MODES = ['rewrite-original', 'rewrite', 'spoiler'];
+  const DISPLAY_MODES = ['rewrite-original', 'rewrite', 'spoiler', 'iltasaatana'];
   // Native-ad / sponsored-content teaser markers, found by inspecting the live
   // front pages (2026-10-01): IS labels an advertorial span
   // `teaser-vignette__title-advertorial` inside `.vignette-advertorial`; IL
@@ -35,7 +35,8 @@
   let enabled = true;
   let paywallMode = 'hide'; // off | dim (gray + 🫰) | hide
   // rewrite-original (text swapped in place, clickbait small below) |
-  // rewrite (text swapped in place) | spoiler (clickbait kept, rewrite small below)
+  // rewrite (text swapped in place) | spoiler (clickbait kept, rewrite small below) |
+  // iltasaatana (clickbait kept, ", saatana" added; no fetch, no LLM)
   let displayMode = 'rewrite-original';
   let hideAds = true;
   // Gray out headlines that were picked up but could not be rewritten — too
@@ -443,6 +444,16 @@
     if (!enabled) return;
     const original = el._kltHeadline;
     const url = el._kltUrl;
+    if (displayMode === 'iltasaatana') {
+      // Nothing to fetch: the clickbait stays, it just gets told what it is.
+      if (applyHeadline(el, original, null)) {
+        setMarkerDone(el);
+        el.setAttribute(PROCESSED_ATTR, 'done');
+      } else {
+        markSkipped(el);
+      }
+      return;
+    }
     let result = null;
     try {
       result = await fetchAndRewrite(url, original);
@@ -513,6 +524,14 @@
     host.appendChild(sub);
   }
 
+  // "Mitä tapahtui?" → "Mitä tapahtui, saatana?", "Näin se meni" → "Näin se
+  // meni, saatana!". A ? or ! is kept; a full stop or ellipsis becomes the !.
+  // Surrounding whitespace is kept, since the node sits among sibling nodes.
+  function curse(text) {
+    const [, lead, core, mark, trail] = text.match(/^(\s*)(.*?)([?!]*)[.…]*(\s*)$/s);
+    return lead + core + ', saatana' + (mark || '!') + trail;
+  }
+
   // Put the rewrite on the page WITHOUT disturbing markup/styling. In the
   // rewrite modes the element's text nodes are rewritten in place (the longest
   // node gets the new text, the rest are blanked), keeping every wrapping
@@ -530,7 +549,9 @@
       const main = longestTextNode(el);
       if (!main) return false;
       const host = headlineBlock(el, main);
-      if (displayMode === 'spoiler') {
+      if (displayMode === 'iltasaatana') {
+        main.nodeValue = curse(main.nodeValue);
+      } else if (displayMode === 'spoiler') {
         appendSub(host, main, rewritten);
       } else {
         // The headline node's own text, not `original`: on IL that is the whole

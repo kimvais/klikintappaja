@@ -21,7 +21,8 @@ backend, no data leaves the browser except the article text sent to the LLM.
    factual headline is swapped in, the badge turns into a subtle ✨ and the
    original clickbait is shown in a smaller line below. Under **Otsikon
    näyttötapa** the popup can instead replace the headline outright, or keep the
-   clickbait and show the factual headline in the smaller line.
+   clickbait and show the factual headline in the smaller line, or (*Iltasaatana*)
+   keep the clickbait and append ", saatana!" without fetching or calling a model.
 4. Results are cached for 24h keyed by the **article ID** in the URL
    (`art-2000012186173` → `is:2000012186173`, `/a/<uuid>` → `a:<uuid>`; anything
    else falls back to a UUIDv5 of the normalized URL). Tracking params, `www.`

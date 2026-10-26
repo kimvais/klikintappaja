@@ -16,6 +16,10 @@ samat kuin `extension/manifest.json`-tiedostossa, ja jokainen julkaisu vastaa
 - **Ollama (oma kone)**: otsikot voi tuottaa omalla koneella pyörivällä mallilla
   (oletuksena Gemma 4). Ei tiliä, ei avainta, ei maksua, eikä juttujen teksti
   lähde koneelta. Ohjeet ponnahdusikkunassa.
+- **Iltasaatana-tila**: asetuksesta "Otsikon näyttötapa" voi valita tilan, joka
+  jättää klikkiotsikon ennalleen ja lisää sen perään ", saatana!" ("Mitä
+  tapahtui, saatana?"). Juttuja ei haeta eikä tekoälyä käytetä, joten
+  API-avainta ei tarvita.
 
 ### Muutettu
 

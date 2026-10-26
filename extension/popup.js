@@ -52,7 +52,7 @@ function init() {
         $('enabled').checked = cfg.enabled !== false;
         $('count').textContent = cfg.count || 0;
         $('paywallMode').value = cfg.paywallMode || 'hide';
-        $('displayMode').value = ['rewrite', 'spoiler'].includes(cfg.displayMode)
+        $('displayMode').value = ['rewrite', 'spoiler', 'iltasaatana'].includes(cfg.displayMode)
           ? cfg.displayMode
           : 'rewrite-original';
         $('dimSkipped').checked = cfg.dimSkipped === true;
